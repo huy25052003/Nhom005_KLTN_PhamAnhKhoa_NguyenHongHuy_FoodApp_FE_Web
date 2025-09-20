@@ -1,6 +1,6 @@
-import http from "../lib/http.js";
+import http from "../lib/http";
 
-const LOGIN_PATH = "/auth/login";
+const LOGIN_PATH = "auth/login";
 
 export async function login(username, password) {
   try {

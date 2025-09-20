@@ -1,22 +1,18 @@
 import React from "react";
-import { Link, useLocation } from "react-router-dom";
+import { NavLink, Outlet } from "react-router-dom";
 
-export default function AdminLayout({ children }) {
-  const { pathname } = useLocation();
-  const Item = ({ to, label }) => (
-    <Link to={to} className={`nav-link ${pathname.startsWith(to) ? "active" : ""}`}>
-      {label}
-    </Link>
-  );
-
+export default function AdminLayout() {
+  const linkClass = ({ isActive }) => `nav-link ${isActive ? "active" : ""}`;
   return (
     <div className="layout">
       <aside className="sidebar">
         <div className="sidebar-title">🍜 Admin</div>
-        <Item to="/admin" label="Tổng quan" />
-        <Item to="/admin/products" label="Sản phẩm" />
+        <NavLink to="/admin" end className={linkClass}>Tổng quan</NavLink>
+        <NavLink to="/admin/products" className={linkClass}>Sản phẩm</NavLink>
       </aside>
-      <main className="container">{children}</main>
+      <main className="container">
+        <Outlet />
+      </main>
     </div>
   );
 }

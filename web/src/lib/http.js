@@ -22,4 +22,6 @@ http.interceptors.response.use(
   }
 );
 
+console.log("HTTP baseURL =", http.defaults.baseURL);
+
 export default http;
