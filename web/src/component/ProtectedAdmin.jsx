@@ -4,6 +4,7 @@ import { useAuth } from "../stores/auth.js";
 
 export default function ProtectedAdmin({ children }) {
   const { accessToken } = useAuth();
-  if (!accessToken) return <Navigate to="/admin/login" replace />;
+  const token = accessToken || localStorage.getItem("accessToken");
+  if (!token) return <Navigate to="/admin/login" replace />;
   return <>{children}</>;
 }
