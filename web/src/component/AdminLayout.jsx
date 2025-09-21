@@ -9,6 +9,7 @@ export default function AdminLayout() {
         <div className="sidebar-title">🍜 Admin</div>
         <NavLink to="/admin" end className={linkClass}>Tổng quan</NavLink>
         <NavLink to="/admin/products" className={linkClass}>Sản phẩm</NavLink>
+        <NavLink to="/admin/categories" className={linkClass}>Danh mục</NavLink>
       </aside>
       <main className="container">
         <Outlet />

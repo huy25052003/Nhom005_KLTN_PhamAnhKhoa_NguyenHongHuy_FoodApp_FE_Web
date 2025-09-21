@@ -7,6 +7,7 @@ import AdminLayout from "./component/AdminLayout.jsx";
 import Login from "./pages/admin/Login.jsx";
 import Dashboard from "./pages/admin/Dashboard.jsx";
 import ProductsPage from "./pages/admin/Product.jsx";
+import CategoriesPage from "./pages/admin/Categories.jsx";
 
 export default function App() {
   return (
@@ -23,6 +24,8 @@ export default function App() {
       >
         <Route index element={<Dashboard />} />
         <Route path="products" element={<ProductsPage />} />
+        <Route path="categories" element={<CategoriesPage />} />
+
       </Route>
       <Route path="*" element={<Navigate to="/admin/login" replace />} />
     </Routes>
