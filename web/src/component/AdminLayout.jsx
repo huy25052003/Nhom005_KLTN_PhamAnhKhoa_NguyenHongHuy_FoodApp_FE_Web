@@ -10,6 +10,7 @@ export default function AdminLayout() {
         <NavLink to="/admin" end className={linkClass}>Tổng quan</NavLink>
         <NavLink to="/admin/products" className={linkClass}>Sản phẩm</NavLink>
         <NavLink to="/admin/categories" className={linkClass}>Danh mục</NavLink>
+        <NavLink to="/admin/orders" className={linkClass}>Đơn hàng</NavLink>
       </aside>
       <main className="container">
         <Outlet />
