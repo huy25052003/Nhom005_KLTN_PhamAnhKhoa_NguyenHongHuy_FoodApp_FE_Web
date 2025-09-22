@@ -4,6 +4,10 @@ export async function getAllProducts() {
   const res = await http.get("/products");
   return res.data;
 }
+export async function listProducts(params = {}) {
+  const res = await http.get("/products", { params });
+  return res.data;
+}
 export async function getProduct(id) {
   const res = await http.get(`/products/${id}`);
   return res.data;
