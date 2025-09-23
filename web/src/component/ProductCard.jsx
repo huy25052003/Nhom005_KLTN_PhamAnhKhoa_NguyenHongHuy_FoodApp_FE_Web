@@ -1,29 +1,14 @@
 import React from "react";
 
-const fmtVND = (n) => (Number(n ?? 0)).toLocaleString("vi-VN") + " đ";
-
-export default function ProductCard({ p }) {
-  const img = p?.imageUrl || p?.thumbnail || "";
-  const catName = p?.category?.name || p?.categoryName || "";
-  const stock = p?.stock ?? null;
-
+export default function ProductCard({ name, price, imageUrl }) {
   return (
     <div className="card product-card">
-      <div className="thumb">
-        {img ? (
-          <img src={img} alt={p?.name} />
-        ) : (
-          <div className="thumb-fallback">No Image</div>
-        )}
+      <div className="product-thumb" style={{ backgroundImage:`url(${imageUrl || "/placeholder.jpg"})` }} />
+      <div className="product-info">
+        <div className="product-name">{name}</div>
+        <div className="product-price">{(price ?? 0).toLocaleString("vi-VN")} đ</div>
       </div>
-      <div className="product-body">
-        <div className="product-name" title={p?.name}>{p?.name}</div>
-        {catName && <div className="muted small">{catName}</div>}
-        <div className="product-bottom">
-          <div className="price">{fmtVND(p?.price)}</div>
-          {stock !== null && <div className="badge">{stock} tồn</div>}
-        </div>
-      </div>
+      <button className="btn btn-ghost w-full">Thêm vào giỏ</button>
     </div>
   );
 }
