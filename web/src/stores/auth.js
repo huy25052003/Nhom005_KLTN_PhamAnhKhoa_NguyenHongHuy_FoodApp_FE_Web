@@ -1,17 +1,13 @@
 import { create } from "zustand";
 
 export const useAuth = create((set) => ({
-  accessToken: localStorage.getItem("accessToken"),
+  token: localStorage.getItem("token") || "",
   setToken: (t) => {
-    if (t) localStorage.setItem("accessToken", t);
-    else localStorage.removeItem("accessToken");
-    set({ accessToken: t });
+    localStorage.setItem("token", t || "");
+    set({ token: t || "" });
   },
   logout: () => {
-    localStorage.removeItem("accessToken");
-    set({ accessToken: null });
-    location.href = "/admin/login";
+    localStorage.removeItem("token");
+    set({ token: "" });
   },
 }));
-
-export default useAuth;

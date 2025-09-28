@@ -1,10 +1,13 @@
 import React from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../stores/auth.js";
 
 export default function ProtectedAdmin({ children }) {
-  const { accessToken } = useAuth();
-  const token = accessToken || localStorage.getItem("accessToken");
-  if (!token) return <Navigate to="/admin/login" replace />;
-  return <>{children}</>;
+  const { token } = useAuth();
+  const location = useLocation();
+  if (!token) {
+    const to = `/admin/login?redirect=${encodeURIComponent(location.pathname + location.search)}`;
+    return <Navigate to={to} replace />;
+  }
+  return children;
 }

@@ -124,12 +124,15 @@ body { font-family: system-ui, Arial, sans-serif; background: var(--bg); color: 
 .login-card{ width:360px; }
 .w-full{ width:100%; }
 
-.badge{ padding:4px 8px; border-radius:999px; font-size:12px; display:inline-block; }
 .badge.pending{ background:#fef3c7; color:#92400e; }
 .badge.preparing{ background:#dbeafe; color:#1e40af; }
 .badge.delivering{ background:#ede9fe; color:#5b21b6; }
 .badge.done{ background:#d1fae5; color:#065f46; }
 .badge.cancelled{ background:#ffe4e6; color:#9f1239; }
+.badge{display:inline-flex;min-width:20px;height:20px;border-radius:999px;
+  align-items:center;justify-content:center;background:#ef4444;color:#fff;
+  font-size:12px;padding:0 6px;margin-left:6px}
+
 
 .h1{ font-size:20px; font-weight:700; margin:0 0 12px; }
 

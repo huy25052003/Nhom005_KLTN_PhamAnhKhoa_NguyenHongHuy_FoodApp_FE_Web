@@ -1,8 +1,13 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+
+// API
 import { getFeaturedProducts, getCategoriesPublic } from "../../api/public.js";
-import HeroBanner from "../../component/HeroBanner.jsx";
-import MealPlanCard from "../../component/MealPlanCard.jsx";
-import ProductCard from "../../component/ProductCard.jsx";
+import { addToCart, getCart } from "../../api/cart.js";
+
+// Stores
+import { useAuth } from "../../stores/auth.js";
+import { useCart } from "../../stores/cart.js";
 
 const samplePlans = [
   { name: "Gói FIT 3 Trưa - Tối", desc: "Best seller", price: 650000, badge: "Best seller" },
@@ -14,6 +19,8 @@ const samplePlans = [
 export default function HomePage() {
   const [cats, setCats] = useState([]);
   const [featured, setFeatured] = useState([]);
+  const { token } = useAuth();
+  const { setCount } = useCart();
 
   useEffect(() => {
     (async () => {
@@ -22,8 +29,8 @@ export default function HomePage() {
           getCategoriesPublic(6),
           getFeaturedProducts(8),
         ]);
-        setCats(c);
-        setFeatured(p);
+        setCats(Array.isArray(c) ? c : []);
+        setFeatured(Array.isArray(p) ? p : []);
       } catch {
         setCats([]);
         setFeatured([]);
@@ -31,32 +38,79 @@ export default function HomePage() {
     })();
   }, []);
 
+  async function onAdd(product) {
+    if (!token) {
+      nav("/admin/login?redirect=/cart");
+    return;
+    }
+    try {
+      await addToCart(product.id, 1);
+      const cart = await getCart();
+      const items = cart?.items || cart?.cartItems || [];
+      const totalQty = items.reduce((s, it) => s + (it?.quantity ?? 0), 0);
+      setCount(totalQty);
+    } catch (e) {
+      alert(e?.response?.data?.message || e?.message || "Thêm vào giỏ thất bại");
+    }
+  }
+
   return (
     <>
-      <HeroBanner />
+      {/* HERO */}
+      <section className="hero">
+        <div className="container hero-grid">
+          <div className="hero-copy">
+            <h1>Kế hoạch bữa ăn hàng tuần cho lối sống lành mạnh</h1>
+            <p>Trải nghiệm bữa ăn sạch tươi ngon, giàu dinh dưỡng — lên plan theo mục tiêu của bạn.</p>
+            <div className="hero-actions">
+              <Link to="/order" className="btn btn-primary">Đặt ngay</Link>
+              <a href="#" className="btn btn-ghost">Tư vấn</a>
+            </div>
+            <ul className="hero-usps">
+              <li>Giao tận nơi mỗi ngày</li>
+              <li>Thực đơn đa dạng 100+ món</li>
+              <li>Tuỳ chỉnh theo mục tiêu (giảm cân / tăng cơ / eat clean)</li>
+            </ul>
+          </div>
+          <div className="hero-visual">
+            <div className="hero-image" />
+          </div>
+        </div>
+      </section>
 
+      {/* CÁCH ĐẶT HÀNG */}
       <section className="section">
         <div className="container">
           <h2 className="section-title">Cách đặt hàng</h2>
           <div className="grid4 howto">
-            <div className="howto-item"><div className="howto-step">1</div><div>Chọn gói ăn<br/>phù hợp</div></div>
-            <div className="howto-item"><div className="howto-step">2</div><div>FoodApp nấu<br/>nguyên liệu tươi</div></div>
-            <div className="howto-item"><div className="howto-step">3</div><div>Giao tận nơi<br/>mỗi ngày</div></div>
-            <div className="howto-item"><div className="howto-step">4</div><div>Hâm nóng &<br/>thưởng thức</div></div>
+            <div className="howto-item"><div className="howto-step">1</div><div>Chọn gói ăn phù hợp</div></div>
+            <div className="howto-item"><div className="howto-step">2</div><div>FoodApp nấu nguyên liệu tươi</div></div>
+            <div className="howto-item"><div className="howto-step">3</div><div>Giao tận nơi mỗi ngày</div></div>
+            <div className="howto-item"><div className="howto-step">4</div><div>Hâm nóng & thưởng thức</div></div>
           </div>
         </div>
       </section>
 
+      {/* GÓI TIÊU BIỂU */}
       <section className="section section-alt">
         <div className="container">
           <h2 className="section-title">Sản phẩm tiêu biểu</h2>
           <div className="grid4">
-            {samplePlans.map((p, i) => <MealPlanCard key={i} {...p} />)}
+            {samplePlans.map((p, i) => (
+              <div key={i} className="card plan-card">
+                {p.badge && <div className="badge badge-primary">{p.badge}</div>}
+                <div className="plan-name">{p.name}</div>
+                <div className="plan-desc">{p.desc}</div>
+                <div className="plan-price">{(p.price ?? 0).toLocaleString("vi-VN")} đ</div>
+                <button className="btn btn-primary w-full">Chọn gói</button>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {cats?.length > 0 && (
+      {/* DANH MỤC NỔI BẬT */}
+      {!!cats.length && (
         <section className="section">
           <div className="container">
             <h2 className="section-title">Danh mục nổi bật</h2>
@@ -71,18 +125,32 @@ export default function HomePage() {
         </section>
       )}
 
+      {/* MÓN YÊU THÍCH */}
       <section className="section">
         <div className="container">
           <h2 className="section-title">Món được yêu thích</h2>
           <div className="grid4">
-            {(featured?.length ? featured : []).map(it => (
-              <ProductCard key={it.id} name={it.name} price={it.price} imageUrl={it.imageUrl} />
+            {(featured ?? []).map((it) => (
+              <div key={it.id} className="card product-card">
+                <div
+                  className="product-thumb"
+                  style={{ backgroundImage: `url(${it.imageUrl || "/placeholder.jpg"})` }}
+                />
+                <div className="product-info">
+                  <div className="product-name">{it.name}</div>
+                  <div className="product-price">{(it.price ?? 0).toLocaleString("vi-VN")} đ</div>
+                </div>
+                <button className="btn btn-ghost w-full" onClick={() => onAdd(it)}>
+                  Thêm vào giỏ
+                </button>
+              </div>
             ))}
             {!featured?.length && <div className="muted">Chưa có dữ liệu sản phẩm.</div>}
           </div>
         </div>
       </section>
 
+      {/* CAM KẾT MÔI TRƯỜNG */}
       <section className="section section-alt">
         <div className="container grid3">
           <div className="eco-card">Túi nylon sinh học tự hủy</div>
@@ -91,12 +159,13 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* ĐỐI TÁC / KHÁCH HÀNG */}
       <section className="section">
         <div className="container">
           <h2 className="section-title">Đối tác & Khách hàng</h2>
-          <div className="logo-row">
-            {Array.from({ length: 10 }).map((_, i) => <div key={i} className="logo-box" />)}
-          </div>
+        </div>
+        <div className="container logo-row">
+          {Array.from({ length: 10 }).map((_, i) => <div key={i} className="logo-box card" style={{height:60}} />)}
         </div>
       </section>
     </>

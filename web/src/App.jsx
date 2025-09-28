@@ -12,6 +12,9 @@ import CategoriesPage from "./pages/admin/Categories.jsx";
 import OrdersPage from "./pages/admin/Orders.jsx";
 import AnalyticsPage from "./pages/admin/Analytics.jsx";
 import HomeIndexPage from "./pages/public/Home.jsx";
+import CartPage from "./pages/public/Cart.jsx";
+import OrderSuccessPage from "./pages/public/OrderSuccess.jsx";
+
 
 export default function App() {
   return (
@@ -23,6 +26,8 @@ export default function App() {
         <Route path="/order" element={<div className="container section">Đặt hàng (đang phát triển)</div>} />
         <Route path="/blog" element={<div className="container section">Tin tức (đang phát triển)</div>} />
         <Route path="/faqs" element={<div className="container section">FAQs (đang phát triển)</div>} />
+        <Route path="/cart" element={<CartPage />} />
+        <Route path="/order-success/:id" element={<OrderSuccessPage />} />
       </Route>
 
       <Route path="/admin/login" element={<Login />} />
