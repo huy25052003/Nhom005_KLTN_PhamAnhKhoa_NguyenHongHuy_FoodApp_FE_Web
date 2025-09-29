@@ -42,7 +42,10 @@ export default function SiteHeader() {
 
         <div className="header-cta">
           {!token ? (
-            <Link className="btn btn-ghost" to="/admin/login?redirect=/cart">Đăng nhập</Link>
+            <>
+              <Link className="btn btn-ghost" to="/admin/login">Đăng nhập</Link>
+              <Link className="btn" to="/register">Đăng ký</Link>
+            </>
           ) : (
             <>
               <button className="btn" onClick={() => nav("/admin")}>Admin</button>
