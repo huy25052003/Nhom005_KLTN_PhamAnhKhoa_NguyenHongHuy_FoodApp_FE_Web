@@ -34,3 +34,13 @@ export async function placeOrderFromCart(cart) {
   const res = await http.post("/orders", items);
   return res.data;
 }
+
+export async function getMyOrders() {
+  const { data } = await http.get("orders/my");
+  return data;
+}
+
+export async function cancelMyOrder(id) {
+  const { data } = await http.put(`orders/${id}/cancel`);
+  return data; 
+}

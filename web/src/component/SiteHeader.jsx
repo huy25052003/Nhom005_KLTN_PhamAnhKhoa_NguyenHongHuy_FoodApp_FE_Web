@@ -51,12 +51,15 @@ export default function SiteHeader() {
               {isAdmin ? (
                 <button className="btn" onClick={() => nav("/admin")}>Admin</button>
               ) : (
+                <>
+                <button className="btn btn-ghost" onClick={() => nav("/account/orders")}>Đơn hàng</button>
                 <button className="icon-btn" title="Tài khoản" onClick={() => nav("/account")}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                     <path d="M20 21a8 8 0 0 0-16 0"/>
                     <circle cx="12" cy="7" r="4"/>
                   </svg>
                 </button>
+                </>
               )}
               <button className="btn" onClick={logout}>Đăng xuất</button>
             </>

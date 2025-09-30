@@ -17,6 +17,7 @@ import OrderSuccessPage from "./pages/public/OrderSuccess.jsx";
 import RegisterPage from "./pages/public/Register.jsx";
 import AccountPage from "./pages/public/Account.jsx";
 import ProtectedUser from "./component/ProtectedUser.jsx";
+import AccountOrdersPage from "./pages/public/MyOrders.jsx";
 
 
 export default function App() {
@@ -26,6 +27,7 @@ export default function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/account" element={<ProtectedUser><AccountPage /></ProtectedUser>} />
+        <Route path="/account/orders" element={<ProtectedUser><AccountOrdersPage/></ProtectedUser>} />
         <Route path="/menu" element={<div className="container section">Trang Thực đơn (đang phát triển)</div>} />
         <Route path="/party" element={<div className="container section">Đặt tiệc (đang phát triển)</div>} />
         <Route path="/order" element={<div className="container section">Đặt hàng (đang phát triển)</div>} />
