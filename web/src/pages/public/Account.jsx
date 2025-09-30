@@ -1,43 +1,136 @@
 import React, { useEffect, useState } from "react";
-import { useAuth } from "../../stores/auth";
-import { getMe } from "../../api/users";
+import { getProfile, updateProfile } from "../../api/users";
 
-export default function AccountPage() {
-  const { username: fromToken } = useAuth();
-  const [username, setUsername] = useState(fromToken || "");
+export default function AccountProfilePage() {
+  const [form, setForm] = useState({
+    heightCm: "",
+    weightKg: "",
+    gender: "",
+    allergies: "",
+    dietaryPreference: "",
+    targetCalories: "",
+    activityLevel: "",
+    birthDate: "" // yyyy-MM-dd
+  });
+
   const [loading, setLoading] = useState(true);
-  const [oldPwd, setOldPwd] = useState("");
-  const [newPwd, setNewPwd] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     let stop = false;
     (async () => {
       try {
-        const me = await getMe();
-        if (!stop && me?.username) setUsername(me.username);
-      } catch {}
-      if (!stop) setLoading(false);
+        const data = await getProfile();
+        if (stop) return;
+        setForm({
+          heightCm: data?.heightCm ?? "",
+          weightKg: data?.weightKg ?? "",
+          gender: data?.gender ?? "",
+          allergies: data?.allergies ?? "",
+          dietaryPreference: data?.dietaryPreference ?? "",
+          targetCalories: data?.targetCalories ?? "",
+          activityLevel: data?.activityLevel ?? "",
+          birthDate: data?.birthDate ?? ""
+        });
+      } catch (e) {
+        console.error(e);
+        alert("Không tải được hồ sơ.");
+      } finally {
+        if (!stop) setLoading(false);
+      }
     })();
     return () => { stop = true; };
   }, []);
 
-  if (loading) return <div className="container section">Đang tải...</div>;
+  function onChange(e) {
+    const { name, value } = e.target;
+    setForm((s) => ({ ...s, [name]: value }));
+  }
+
+  async function onSubmit(e) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      // Chuẩn hóa kiểu số & ngày
+      const payload = {
+        ...form,
+        heightCm: form.heightCm === "" ? null : Number(form.heightCm),
+        weightKg: form.weightKg === "" ? null : Number(form.weightKg),
+        targetCalories: form.targetCalories === "" ? null : Number(form.targetCalories),
+        birthDate: form.birthDate || null, // yyyy-MM-dd
+      };
+      await updateProfile(payload);
+      alert("Cập nhật hồ sơ thành công!");
+    } catch (e) {
+      console.error(e);
+      const msg = e?.response?.data?.error || e?.message || "Cập nhật thất bại";
+      alert(msg);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) {
+    return <div className="container section">Đang tải hồ sơ…</div>;
+  }
 
   return (
     <div className="container section">
-      <h1 className="h1">Tài khoản của tôi</h1>
-
-      <div className="card" style={{ maxWidth: 600 }}>
-        <div className="card-body">
-          <div className="form-row">
-            <label>Tên đăng nhập</label>
-            <input className="input" value={username} disabled readOnly />
+      <h1 className="h2">Tài khoản của tôi</h1>
+      <form className="card" onSubmit={onSubmit} style={{ maxWidth: 720 }}>
+        <div className="grid-2 gap-3">
+          <div>
+            <label className="label">Chiều cao (cm)</label>
+            <input className="input" type="number" step="0.1" name="heightCm" value={form.heightCm} onChange={onChange} />
           </div>
-          <p className="text-sm text-muted">Thông tin sức khoẻ (chiều cao, cân nặng, ... ) sẽ bổ sung sau.</p>
-        </div>
-      </div>
+          <div>
+            <label className="label">Cân nặng (kg)</label>
+            <input className="input" type="number" step="0.1" name="weightKg" value={form.weightKg} onChange={onChange} />
+          </div>
 
-      <div style={{ height: 20 }} />
+          <div>
+            <label className="label">Giới tính</label>
+            <select className="input" name="gender" value={form.gender} onChange={onChange}>
+              <option value="">-- Chọn --</option>
+              <option value="MALE">Nam</option>
+              <option value="FEMALE">Nữ</option>
+              <option value="OTHER">Khác</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Mức hoạt động</label>
+            <select className="input" name="activityLevel" value={form.activityLevel} onChange={onChange}>
+              <option value="">-- Chọn --</option>
+              <option value="LOW">Thấp</option>
+              <option value="MEDIUM">Trung bình</option>
+              <option value="HIGH">Cao</option>
+            </select>
+          </div>
+
+          <div className="col-span-2">
+            <label className="label">Sở thích ăn uống</label>
+            <input className="input" name="dietaryPreference" value={form.dietaryPreference} onChange={onChange} placeholder="Ít tinh bột, eat-clean..." />
+          </div>
+
+          <div className="col-span-2">
+            <label className="label">Dị ứng</label>
+            <input className="input" name="allergies" value={form.allergies} onChange={onChange} placeholder="Hải sản, đậu phộng..." />
+          </div>
+
+          <div>
+            <label className="label">Mục tiêu calo/ngày</label>
+            <input className="input" type="number" name="targetCalories" value={form.targetCalories} onChange={onChange} />
+          </div>
+          <div>
+            <label className="label">Ngày sinh</label>
+            <input className="input" type="date" name="birthDate" value={form.birthDate || ""} onChange={onChange} />
+          </div>
+        </div>
+
+        <div className="mt-3">
+          <button className="btn btn-primary" disabled={saving}>{saving ? "Đang lưu..." : "Lưu thay đổi"}</button>
+        </div>
+      </form>
     </div>
   );
 }

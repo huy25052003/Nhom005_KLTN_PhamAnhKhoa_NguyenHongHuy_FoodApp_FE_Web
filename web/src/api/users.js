@@ -17,3 +17,13 @@ export async function getMe() {
   try { return (await http.get("auth/me")).data; } catch {}
   return decodeFromToken();
 }
+
+export async function getProfile() {
+  const res = await http.get("users/me/profile"); 
+  return res.data;
+}
+
+export async function updateProfile(payload) {
+  const res = await http.patch("users/me/profile", payload);
+  return res.data;
+}
