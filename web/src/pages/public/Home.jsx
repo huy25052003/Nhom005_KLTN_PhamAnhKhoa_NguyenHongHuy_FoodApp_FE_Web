@@ -1,11 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom"; // <-- THÊM useNavigate
 
-// API
 import { getFeaturedProducts, getCategoriesPublic } from "../../api/public.js";
 import { addToCart, getCart } from "../../api/cart.js";
 
-// Stores
 import { useAuth } from "../../stores/auth.js";
 import { useCart } from "../../stores/cart.js";
 
@@ -15,12 +13,14 @@ const samplePlans = [
   { name: "Gói SLIM Không tinh bột", desc: "Gấp đôi rau", price: 600000 },
   { name: "Gói MEAT Tăng cơ", desc: "Thêm 1.5x thịt", price: 950000 },
 ];
+const formatVND = (n) => (n ?? 0).toLocaleString("vi-VN") + " đ";
 
 export default function HomePage() {
   const [cats, setCats] = useState([]);
   const [featured, setFeatured] = useState([]);
   const { token } = useAuth();
   const { setCount } = useCart();
+  const nav = useNavigate(); // <-- THÊM DÒNG NÀY
 
   useEffect(() => {
     (async () => {
@@ -40,8 +40,8 @@ export default function HomePage() {
 
   async function onAdd(product) {
     if (!token) {
-      nav("/admin/login?redirect=/cart");
-    return;
+      nav("/admin/login?redirect=/cart"); // <-- FIX: dùng nav hợp lệ
+      return;
     }
     try {
       await addToCart(product.id, 1);
@@ -132,17 +132,27 @@ export default function HomePage() {
           <div className="grid4">
             {(featured ?? []).map((it) => (
               <div key={it.id} className="card product-card">
-                <div
+                <Link
+                  to={`/products/${it.id}`}
                   className="product-thumb"
                   style={{ backgroundImage: `url(${it.imageUrl || "/placeholder.jpg"})` }}
+                  aria-label={it.name}
                 />
                 <div className="product-info">
-                  <div className="product-name">{it.name}</div>
-                  <div className="product-price">{(it.price ?? 0).toLocaleString("vi-VN")} đ</div>
+                  <Link to={`/product/${it.id}`} className="product-name">
+                    {it.name}
+                  </Link>
+                  <div className="product-price">{formatVND(it.price)}</div>
                 </div>
-                <button className="btn btn-ghost w-full" onClick={() => onAdd(it)}>
-                  Thêm vào giỏ
-                </button>
+
+                <div className="card-actions">
+                  <button className="btn" onClick={() => onAdd(it)}>
+                    Thêm vào giỏ
+                  </button>
+                  <Link to={`/products/${it.id}`} className="btn btn-ghost">
+                    Xem chi tiết
+                  </Link>
+                </div>
               </div>
             ))}
             {!featured?.length && <div className="muted">Chưa có dữ liệu sản phẩm.</div>}
@@ -165,7 +175,9 @@ export default function HomePage() {
           <h2 className="section-title">Đối tác & Khách hàng</h2>
         </div>
         <div className="container logo-row">
-          {Array.from({ length: 10 }).map((_, i) => <div key={i} className="logo-box card" style={{height:60}} />)}
+          {Array.from({ length: 10 }).map((_, i) => (
+            <div key={i} className="logo-box card" style={{ height: 60 }} />
+          ))}
         </div>
       </section>
     </>
