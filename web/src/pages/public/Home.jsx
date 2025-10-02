@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom"; // <-- THÊM useNavigate
+import { Link, useNavigate } from "react-router-dom"; 
 
 import { getFeaturedProducts, getCategoriesPublic } from "../../api/public.js";
 import { addToCart, getCart } from "../../api/cart.js";
@@ -40,7 +40,7 @@ export default function HomePage() {
 
   async function onAdd(product) {
     if (!token) {
-      nav("/admin/login?redirect=/cart"); // <-- FIX: dùng nav hợp lệ
+      nav("/admin/login?redirect=/cart"); 
       return;
     }
     try {
@@ -56,7 +56,6 @@ export default function HomePage() {
 
   return (
     <>
-      {/* HERO */}
       <section className="hero">
         <div className="container hero-grid">
           <div className="hero-copy">
@@ -78,7 +77,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* CÁCH ĐẶT HÀNG */}
       <section className="section">
         <div className="container">
           <h2 className="section-title">Cách đặt hàng</h2>
@@ -91,7 +89,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* GÓI TIÊU BIỂU */}
       <section className="section section-alt">
         <div className="container">
           <h2 className="section-title">Sản phẩm tiêu biểu</h2>
@@ -109,37 +106,42 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* DANH MỤC NỔI BẬT */}
       {!!cats.length && (
         <section className="section">
           <div className="container">
             <h2 className="section-title">Danh mục nổi bật</h2>
             <div className="grid6">
               {cats.map((c) => (
-                <div key={c.id} className="card cat-card">
+                <Link
+                  key={c.id}
+                  to={`/categories/${c.id}`}   
+                  className="card cat-card"
+                >
                   <div className="cat-name">{c.name}</div>
-                </div>
+                </Link>
               ))}
             </div>
           </div>
         </section>
       )}
 
-      {/* MÓN YÊU THÍCH */}
-      <section className="section">
+     <section className="section">
         <div className="container">
           <h2 className="section-title">Món được yêu thích</h2>
           <div className="grid4">
             {(featured ?? []).map((it) => (
               <div key={it.id} className="card product-card">
-                <Link
-                  to={`/products/${it.id}`}
-                  className="product-thumb"
-                  style={{ backgroundImage: `url(${it.imageUrl || "/placeholder.jpg"})` }}
-                  aria-label={it.name}
-                />
+                <Link to={`/products/${it.id}`} aria-label={it.name}>
+                  <img
+                    className="product-img"
+                    src={it.imageUrl || "/placeholder.jpg"}
+                    alt={it.name}
+                    style={{ width: "100%", height: 180, objectFit: "cover", borderRadius: 8 }}
+                    loading="lazy"
+                  />
+                </Link>
                 <div className="product-info">
-                  <Link to={`/product/${it.id}`} className="product-name">
+                  <Link to={`/products/${it.id}`} className="product-name">
                     {it.name}
                   </Link>
                   <div className="product-price">{formatVND(it.price)}</div>
@@ -160,7 +162,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* CAM KẾT MÔI TRƯỜNG */}
       <section className="section section-alt">
         <div className="container grid3">
           <div className="eco-card">Túi nylon sinh học tự hủy</div>
@@ -169,7 +170,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ĐỐI TÁC / KHÁCH HÀNG */}
       <section className="section">
         <div className="container">
           <h2 className="section-title">Đối tác & Khách hàng</h2>

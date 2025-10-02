@@ -6,19 +6,21 @@ import {
   deleteProduct,
 } from "../../api/products.js";
 import { getCategories } from "../../api/categories.js";
-
+import { uploadImage } from "../../api/uploads.js"; 
 const PAGE_SIZE = 12;
 const formatVND = (n) => (Number(n || 0)).toLocaleString("vi-VN") + " đ";
 
 export default function ProductPage() {
   const [q, setQ] = useState("");
-  const [catFilter, setCatFilter] = useState(""); 
+  const [catFilter, setCatFilter] = useState("");
   const [page, setPage] = useState(1);
 
-  const [items, setItems] = useState([]);   
-  const [cats, setCats] = useState([]);   
+  const [items, setItems] = useState([]);
+  const [cats, setCats] = useState([]);
 
-  const [editing, setEditing] = useState(null);  
+  const [editing, setEditing] = useState(null);
+  const [imgUrl, setImgUrl] = useState("");       
+  const [uploading, setUploading] = useState(false); 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -37,6 +39,14 @@ export default function ProductPage() {
   }
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    if (editing) {
+      setImgUrl(editing.imageUrl || "");
+    } else {
+      setImgUrl("");
+    }
+  }, [editing]);
 
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -73,7 +83,7 @@ export default function ProductPage() {
         name: String(fd.get("name") || "").trim(),
         price: Number(fd.get("price") || 0),
         stock: Math.max(0, Number(fd.get("stock") || 0)),
-        imageUrl: String(fd.get("imageUrl") || ""),
+        imageUrl: String(imgUrl || ""),
         description: String(fd.get("description") || ""),
       };
       const categoryId = Number(fd.get("categoryId") || 0);
@@ -95,6 +105,22 @@ export default function ProductPage() {
       alert(e?.response?.data?.message || e?.message || "Lưu sản phẩm thất bại");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function onPickFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setUploading(true);
+      const url = await uploadImage(file); 
+      if (!url) throw new Error("Không nhận được URL ảnh.");
+      setImgUrl(url);
+    } catch (err) {
+      alert(err?.response?.data?.message || err?.message || "Upload ảnh thất bại");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
     }
   }
 
@@ -177,7 +203,40 @@ export default function ProductPage() {
                 <input name="name" defaultValue={editing.name} placeholder="Tên" required className="input" />
                 <input name="price" defaultValue={editing.price} placeholder="Giá" type="number" min={0} required className="input" />
                 <input name="stock" defaultValue={editing.stock ?? 0} placeholder="Tồn kho" type="number" min={0} className="input" />
-                <input name="imageUrl" defaultValue={editing.imageUrl || ""} placeholder="Ảnh (URL)" className="input full" />
+
+                <div className="full" style={{ display: "grid", gap: 8 }}>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input
+                      name="imageUrl"
+                      className="input"
+                      placeholder="Ảnh (URL)"
+                      value={imgUrl}
+                      onChange={(e) => setImgUrl(e.target.value)}
+                      style={{ flex: 1 }}
+                    />
+                    <label className={`btn ${uploading ? "btn-disabled" : ""}`} style={{ cursor: uploading ? "not-allowed" : "pointer" }}>
+                      {uploading ? "Đang tải..." : "Tải ảnh lên S3"}
+                      <input type="file" accept="image/*" onChange={onPickFile} style={{ display: "none" }} />
+                    </label>
+                  </div>
+
+                  {imgUrl ? (
+                    <div className="card" style={{ padding: 8 }}>
+                      <div style={{
+                        width: "100%",
+                        height: 180,
+                        backgroundSize: "cover",
+                        backgroundPosition: "center",
+                        borderRadius: 8,
+                        backgroundImage: `url(${imgUrl})`,
+                      }} />
+                      <div className="muted" style={{ marginTop: 6, wordBreak: "break-all" }}>{imgUrl}</div>
+                    </div>
+                  ) : (
+                    <div className="muted">Chưa có ảnh</div>
+                  )}
+                </div>
+
                 <input name="description" defaultValue={editing.description || ""} placeholder="Mô tả" className="input full" />
                 <select
                   name="categoryId"
