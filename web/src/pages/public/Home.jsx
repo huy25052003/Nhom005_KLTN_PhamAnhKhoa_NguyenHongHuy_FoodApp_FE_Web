@@ -20,8 +20,7 @@ export default function HomePage() {
   const [featured, setFeatured] = useState([]);
   const { token } = useAuth();
   const { setCount } = useCart();
-  const nav = useNavigate(); // <-- THÊM DÒNG NÀY
-
+  const nav = useNavigate(); 
   useEffect(() => {
     (async () => {
       try {

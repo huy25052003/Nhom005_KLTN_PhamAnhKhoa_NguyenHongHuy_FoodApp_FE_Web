@@ -405,3 +405,22 @@ body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sa
 .product-card .product-price { color:#d12; margin-top: 4px; }
 .card-actions { display:flex; gap:8px; margin-top: 10px; }
 .cat-card { cursor:pointer; display:flex; align-items:center; justify-content:center; min-height:90px; }
+
+html, body, #root { height: 100%; }
+body { margin: 0; }
+
+.public-app {
+  min-height: 100vh;           
+  min-height: 100dvh;         
+  display: flex;
+  flex-direction: column;
+}
+.public-app > header,
+.public-app > footer {
+  flex-shrink: 0;
+}
+
+.site-main {
+  flex: 1 0 auto;
+  display: block;         
+}

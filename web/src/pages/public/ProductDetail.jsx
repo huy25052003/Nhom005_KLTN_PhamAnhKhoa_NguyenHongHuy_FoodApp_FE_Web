@@ -1,10 +1,11 @@
 import React from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getProduct } from "../../api/products";
-import { addToCart } from "../../api/cart";
+import { addToCart, getCart } from "../../api/cart";
 import { listReviews, createReview, deleteReview, getAvgRating } from "../../api/reviews";
 import { useAuth } from "../../stores/auth";
+import { useCart } from "../../stores/cart";
 
 const formatVND = (n) => (n ?? 0).toLocaleString("vi-VN") + " đ";
 
@@ -23,15 +24,15 @@ export default function ProductDetailPage() {
   const pid = Number(id);
   const qc = useQueryClient();
   const { token } = useAuth();
+  const { setCount } = useCart();
   const me = React.useMemo(() => (token ? decodeJwt(token) : null), [token]);
+  const nav = useNavigate();
 
-  // Product
   const { data: product, isLoading: loadingProduct, error: errProduct } = useQuery({
     queryKey: ["product", pid],
     queryFn: () => getProduct(pid),
   });
 
-  // Reviews
   const { data: reviews = [], isLoading: loadingReviews } = useQuery({
     queryKey: ["reviews", pid],
     queryFn: () => listReviews(pid),
@@ -42,24 +43,35 @@ export default function ProductDetailPage() {
     queryFn: () => getAvgRating(pid),
   });
 
-  // Add to cart
   const [qty, setQty] = React.useState(1);
-  const addToCart = useMutation({
+  const addToCartMutation = useMutation({
     mutationFn: () => addToCart(pid, qty),
-    onSuccess: () => {
+    onSuccess: async () => {
+      const cart = await getCart();
+      const items = cart?.items || cart?.cartItems || [];
+      const totalQty = items.reduce((s, it) => s + (it?.quantity ?? 0), 0);
+      setCount(totalQty);
       alert("Đã thêm vào giỏ");
       qc.invalidateQueries({ queryKey: ["cart"] });
     },
     onError: (e) => alert(e?.response?.data?.error || "Thêm giỏ hàng thất bại"),
   });
 
-  // New review
+  const handleAddToCart = () => {
+    if (!token) {
+      nav("/admin/login?redirect=/cart");
+      return;
+    }
+    addToCartMutation.mutate();
+  };
+
   const [rating, setRating] = React.useState(5);
   const [comment, setComment] = React.useState("");
   const createMut = useMutation({
     mutationFn: () => createReview(pid, { rating, comment }),
     onSuccess: () => {
-      setComment(""); setRating(5);
+      setComment("");
+      setRating(5);
       qc.invalidateQueries({ queryKey: ["reviews", pid] });
       qc.invalidateQueries({ queryKey: ["reviews-avg", pid] });
     },
@@ -107,7 +119,9 @@ export default function ProductDetailPage() {
                 type="button"
                 onClick={() => setQty((q) => Math.max(1, q - 1))}
                 aria-label="Giảm"
-              >−</button>
+              >
+                −
+              </button>
               <input
                 className="qty-input"
                 type="number"
@@ -119,14 +133,16 @@ export default function ProductDetailPage() {
                 type="button"
                 onClick={() => setQty((q) => q + 1)}
                 aria-label="Tăng"
-              >+</button>
+              >
+                +
+              </button>
             </div>
             <button
-              className="btn btn-primary"
-              disabled={addToCart.isPending}
-              onClick={() => addToCart.mutate()}
+              className="btn"
+              disabled={addToCartMutation.isPending}
+              onClick={handleAddToCart}
             >
-              {addToCart.isPending ? "Đang thêm…" : "Thêm vào giỏ"}
+              {addToCartMutation.isPending ? "Đang thêm…" : "Thêm vào giỏ"}
             </button>
           </div>
         </div>
@@ -149,7 +165,9 @@ export default function ProductDetailPage() {
                     {r.createdAt ? new Date(r.createdAt).toLocaleString() : ""}
                   </span>
                 </div>
-                <div className="review-rating"><Stars value={r.rating} /></div>
+                <div className="review-rating">
+                  <Stars value={r.rating} />
+                </div>
                 {r.comment && <div className="review-comment">{r.comment}</div>}
                 {canDeleteReview(r) && (
                   <button
@@ -207,7 +225,8 @@ function Stars({ value = 0 }) {
   const full = Math.round(Number(value) || 0);
   return (
     <span className="rating-stars" title={`${value}/5`}>
-      {"★★★★★".slice(0, full)}{"☆☆☆☆☆".slice(0, 5 - full)}
+      {"★★★★★".slice(0, full)}
+      {"☆☆☆☆☆".slice(0, 5 - full)}
     </span>
   );
 }

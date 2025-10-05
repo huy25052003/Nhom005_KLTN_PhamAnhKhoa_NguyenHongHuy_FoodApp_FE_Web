@@ -52,6 +52,7 @@ export default function SiteHeader() {
                 <button className="btn" onClick={() => nav("/admin")}>Admin</button>
               ) : (
                 <>
+                <button className="btn btn-ghost" onClick={() => nav("/account/shipping")}>Thông tin giao hàng</button>
                 <button className="btn btn-ghost" onClick={() => nav("/account/orders")}>Đơn hàng</button>
                 <button className="icon-btn" title="Tài khoản" onClick={() => nav("/account")}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor">
