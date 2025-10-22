@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom"; 
+import { Link, useNavigate } from "react-router-dom";
 
 import { getFeaturedProducts, getCategoriesPublic } from "../../api/public.js";
 import { addToCart, getCart } from "../../api/cart.js";
-
+import { toggleFavorite, getFavoriteStat } from "../../api/favorites.js";
 import { useAuth } from "../../stores/auth.js";
 import { useCart } from "../../stores/cart.js";
 
@@ -18,16 +18,15 @@ const formatVND = (n) => (n ?? 0).toLocaleString("vi-VN") + " đ";
 export default function HomePage() {
   const [cats, setCats] = useState([]);
   const [featured, setFeatured] = useState([]);
+  const [favMap, setFavMap] = useState({});
+
   const { token } = useAuth();
   const { setCount } = useCart();
-  const nav = useNavigate(); 
+  const nav = useNavigate();
   useEffect(() => {
     (async () => {
       try {
-        const [c, p] = await Promise.all([
-          getCategoriesPublic(6),
-          getFeaturedProducts(8),
-        ]);
+        const [c, p] = await Promise.all([getCategoriesPublic(6), getFeaturedProducts(8)]);
         setCats(Array.isArray(c) ? c : []);
         setFeatured(Array.isArray(p) ? p : []);
       } catch {
@@ -37,9 +36,33 @@ export default function HomePage() {
     })();
   }, []);
 
+  useEffect(() => {
+    let stop = false;
+    (async () => {
+      if (!token || !featured?.length) return;
+      try {
+        const entries = await Promise.all(
+          featured.map(async (p) => {
+            try {
+              const stat = await getFavoriteStat(p.id); 
+              return [p.id, !!stat?.favorite];
+            } catch {
+              return [p.id, false];
+            }
+          })
+        );
+        if (!stop) setFavMap(Object.fromEntries(entries));
+      } catch {
+      }
+    })();
+    return () => {
+      stop = true;
+    };
+  }, [token, featured]);
+
   async function onAdd(product) {
     if (!token) {
-      nav("/admin/login?redirect=/cart"); 
+      nav("/admin/login?redirect=/cart");
       return;
     }
     try {
@@ -50,6 +73,19 @@ export default function HomePage() {
       setCount(totalQty);
     } catch (e) {
       alert(e?.response?.data?.message || e?.message || "Thêm vào giỏ thất bại");
+    }
+  }
+
+  async function onToggleFavorite(productId) {
+    if (!token) {
+      nav("/admin/login?redirect=/");
+      return;
+    }
+    try {
+      const { favorite } = await toggleFavorite(productId); // { favorite: boolean }
+      setFavMap((m) => ({ ...m, [productId]: !!favorite }));
+    } catch (e) {
+      alert(e?.response?.data?.message || e?.message || "Không cập nhật được yêu thích");
     }
   }
 
@@ -113,7 +149,7 @@ export default function HomePage() {
               {cats.map((c) => (
                 <Link
                   key={c.id}
-                  to={`/categories/${c.id}`}   
+                  to={`/categories/${c.id}`}
                   className="card cat-card"
                 >
                   <div className="cat-name">{c.name}</div>
@@ -124,38 +160,67 @@ export default function HomePage() {
         </section>
       )}
 
-     <section className="section">
+      <section className="section">
         <div className="container">
           <h2 className="section-title">Món được yêu thích</h2>
           <div className="grid4">
-            {(featured ?? []).map((it) => (
-              <div key={it.id} className="card product-card">
-                <Link to={`/products/${it.id}`} aria-label={it.name}>
-                  <img
-                    className="product-img"
-                    src={it.imageUrl || "/placeholder.jpg"}
-                    alt={it.name}
-                    style={{ width: "100%", height: 180, objectFit: "cover", borderRadius: 8 }}
-                    loading="lazy"
-                  />
-                </Link>
-                <div className="product-info">
-                  <Link to={`/products/${it.id}`} className="product-name">
-                    {it.name}
-                  </Link>
-                  <div className="product-price">{formatVND(it.price)}</div>
-                </div>
-
-                <div className="card-actions">
-                  <button className="btn" onClick={() => onAdd(it)}>
-                    Thêm vào giỏ
+            {(featured ?? []).map((it) => {
+              const isFav = !!favMap[it.id];
+              return (
+                <div key={it.id} className="card product-card" style={{ position: "relative" }}>
+                  <button
+                    type="button"
+                    className="icon-heart"
+                    onClick={() => onToggleFavorite(it.id)}
+                    title={isFav ? "Bỏ yêu thích" : "Thêm yêu thích"}
+                    style={{
+                      position: "absolute",
+                      top: 8,
+                      right: 8,
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      border: "1px solid #eee",
+                      background: "#fff",
+                      display: "grid",
+                      placeItems: "center",
+                      cursor: "pointer",
+                      zIndex: 2
+                    }}
+                  >
+                    <span style={{ color: isFav ? "crimson" : "#999", fontSize: 18 }}>
+                      {isFav ? "♥" : "♡"}
+                    </span>
                   </button>
-                  <Link to={`/products/${it.id}`} className="btn btn-ghost">
-                    Xem chi tiết
+
+                  <Link to={`/products/${it.id}`} aria-label={it.name}>
+                    <img
+                      className="product-img"
+                      src={it.imageUrl || "/placeholder.jpg"}
+                      alt={it.name}
+                      style={{ width: "100%", height: 180, objectFit: "cover", borderRadius: 8 }}
+                      loading="lazy"
+                    />
                   </Link>
+
+                  <div className="product-info">
+                    <Link to={`/products/${it.id}`} className="product-name">
+                      {it.name}
+                    </Link>
+                    <div className="product-price">{formatVND(it.price)}</div>
+                  </div>
+
+                  <div className="card-actions">
+                    <button className="btn" onClick={() => onAdd(it)}>
+                      Thêm vào giỏ
+                    </button>
+                    <Link to={`/products/${it.id}`} className="btn btn-ghost">
+                      Xem chi tiết
+                    </Link>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             {!featured?.length && <div className="muted">Chưa có dữ liệu sản phẩm.</div>}
           </div>
         </div>
