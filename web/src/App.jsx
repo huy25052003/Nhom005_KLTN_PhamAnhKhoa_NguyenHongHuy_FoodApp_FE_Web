@@ -23,6 +23,8 @@ import CategoryProductsPage from "./pages/public/CategoryProducts.jsx";
 import CheckoutPage from "./pages/public/Checkout.jsx";
 import PaymentResultPage from "./pages/public/PaymentResult.jsx";
 import ShippingInfoPage from "./pages/public/ShippingInfo.jsx";
+import FavoritesPage from "./pages/public/Favorites.jsx";
+import AdminInvoice from "./pages/admin/AdminInvoice.jsx";
 
 
 export default function App() {
@@ -38,6 +40,7 @@ export default function App() {
         <Route path="/checkout" element={<CheckoutPage />} />
         <Route path="/account/shipping" element={<ShippingInfoPage />} />
         <Route path="/pay/result" element={<PaymentResultPage />} />
+        <Route path="/favorites" element={<FavoritesPage />} />
         <Route path="/menu" element={<div className="container section">Trang Thực đơn (đang phát triển)</div>} />
         <Route path="/party" element={<div className="container section">Đặt tiệc (đang phát triển)</div>} />
         <Route path="/order" element={<div className="container section">Đặt hàng (đang phát triển)</div>} />
@@ -58,7 +61,7 @@ export default function App() {
       >
         <Route index element={<Dashboard />} />
         <Route path="products" element={<ProductPage />} />
-
+        <Route path="/admin/orders/:id/invoice" element={<AdminInvoice />} />
         <Route path="orders" element={<OrdersPage />} />
         <Route path="categories" element={<CategoriesPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />

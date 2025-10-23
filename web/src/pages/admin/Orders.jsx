@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { getOrders, getOrder, updateOrderStatus } from "../../api/orders.js";
+import { Link } from 'react-router-dom';
 
 const STATUS_LIST = ["PENDING","CONFIRMED","PREPARING","SHIPPING","COMPLETED","CANCELED"];
 const PAGE_SIZES = [10, 20, 50];
@@ -160,6 +161,17 @@ export default function OrdersPage() {
                       ))}
                     </div>
                   )}
+                </td>
+                <td style={{ whiteSpace: "nowrap" }}>
+                  {/* ...các nút khác... */}
+                  <Link
+                    className="btn"
+                    to={`/admin/orders/${o.id}/invoice`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    In hoá đơn
+                  </Link>
                 </td>
               </tr>
             )) : (
