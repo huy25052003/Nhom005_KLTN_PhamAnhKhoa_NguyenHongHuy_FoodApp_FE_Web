@@ -1,5 +1,6 @@
 import React from "react";
 import { NavLink, Outlet } from "react-router-dom";
+import AdminNotifyBell from "../pages/admin/AdminNotifyBell.jsx";
 
 export default function AdminLayout() {
   const linkClass = ({ isActive }) => `nav-link ${isActive ? "active" : ""}`;
@@ -14,6 +15,11 @@ export default function AdminLayout() {
         <NavLink to="/admin/analytics" className={linkClass}>Thống kê</NavLink>
       </aside>
       <main className="container">
+        <header className="admin-header"> 
+          <div className="admin-header-right">
+            <AdminNotifyBell />
+          </div>
+        </header>
         <Outlet />
       </main>
     </div>
