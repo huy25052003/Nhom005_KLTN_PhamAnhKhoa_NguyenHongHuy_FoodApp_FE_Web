@@ -22,7 +22,7 @@ export default function FavoritesPage() {
         setData(res);
       } finally { setLoading(false); }
     })();
-  }, [token, page, size]);
+  }, [token, page, size, nav]); 
 
   if (loading) return <div className="container section">Đang tải…</div>;
 
@@ -44,11 +44,21 @@ export default function FavoritesPage() {
         <div className="grid4">
           {items.map(p => (
             <div key={p.id} className="card product-card">
-              <Link
-                to={`/products/${p.id}`}
-                className="product-thumb"
-                style={{ backgroundImage: `url(${p.imageUrl || "/placeholder.jpg"})` }}
-              />
+              <Link to={`/products/${p.id}`} className="product-image-link">
+                <img
+                  src={p.imageUrl || "/placeholder.jpg"}
+                  alt={p.name}
+                  loading="lazy"
+                  onError={(e) => { e.currentTarget.src = "/placeholder.jpg"; }}
+                  style={{
+                    width: '100%',
+                    height: '160px',
+                    objectFit: 'cover', 
+                    borderRadius: '12px', 
+                    display: 'block' 
+                  }}
+                />
+              </Link>
               <div className="product-info">
                 <Link to={`/products/${p.id}`} className="product-name">{p.name}</Link>
                 <div className="product-price">{fmt(p.price)}</div>
@@ -58,11 +68,13 @@ export default function FavoritesPage() {
         </div>
       )}
 
-      <div className="pagination" style={{ marginTop: 12 }}>
-        <button className="btn" disabled={page <= 0} onClick={() => setPage(p => p - 1)}>← Trước</button>
-        <span>Trang {page + 1}/{totalPages}</span>
-        <button className="btn" disabled={page + 1 >= totalPages} onClick={() => setPage(p => p + 1)}>Sau →</button>
-      </div>
+      {items.length > 0 && (
+        <div className="pagination" style={{ marginTop: 12 }}>
+          <button className="btn" disabled={page <= 0} onClick={() => setPage(p => p - 1)}>← Trước</button>
+          <span>Trang {page + 1}/{totalPages}</span>
+          <button className="btn" disabled={page + 1 >= totalPages} onClick={() => setPage(p => p + 1)}>Sau →</button>
+        </div>
+      )}
     </div>
   );
 }
