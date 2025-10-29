@@ -7,14 +7,9 @@ export default function ShippingInfoPage() {
   const { token } = useAuth();
   const nav = useNavigate();
   const [sp] = useSearchParams();
-
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
-    phone: "",
-    addressLine: "",
-    city: "",
-  });
+  const [form, setForm] = useState({ phone: "", addressLine: "", city: "" });
   const [msg, setMsg] = useState("");
 
   useEffect(() => {
@@ -34,7 +29,6 @@ export default function ShippingInfoPage() {
           });
         }
       } catch (e) {
-        // không sao, coi như chưa có
       } finally {
         setLoading(false);
       }
@@ -51,7 +45,6 @@ export default function ShippingInfoPage() {
     setMsg("");
     if (!form.phone.trim()) { setMsg("Vui lòng nhập số điện thoại."); return; }
     if (!form.addressLine.trim()) { setMsg("Vui lòng nhập địa chỉ giao hàng."); return; }
-
     setSaving(true);
     try {
       await upsertMyShipping({
@@ -60,8 +53,6 @@ export default function ShippingInfoPage() {
         city: form.city.trim(),
       });
       setMsg("Đã lưu thông tin giao hàng ✅");
-
-      // nếu có redirect (ví dụ từ checkout), quay lại
       const back = sp.get("redirect");
       if (back) {
         setTimeout(() => nav(back), 400);
@@ -76,45 +67,29 @@ export default function ShippingInfoPage() {
   if (loading) return <div className="container section">Đang tải…</div>;
 
   return (
-    <div className="container section">
+    <div className="container section fade-in">
       <h1 className="h1">Thông tin giao hàng</h1>
 
-      <div className="card" style={{ maxWidth: 640 }}>
+      <div className="card card-hover" style={{ maxWidth: 640 }}>
         <form onSubmit={onSave}>
           <div className="form-grid">
             <label className="label">Số điện thoại *</label>
             <input
-              className="input"
-              name="phone"
-              value={form.phone}
-              onChange={onChange}
-              placeholder="VD: 09xxxxxxxx"
-              required
+              className="input" name="phone" value={form.phone} onChange={onChange}
+              placeholder="VD: 09xxxxxxxx" required
             />
-
             <label className="label">Địa chỉ *</label>
             <textarea
-              className="input"
-              name="addressLine"
-              value={form.addressLine}
-              onChange={onChange}
-              rows={3}
-              placeholder="Số nhà, đường, phường/xã…"
-              required
+              className="input" name="addressLine" value={form.addressLine} onChange={onChange}
+              rows={3} placeholder="Số nhà, đường, phường/xã…" required
             />
-
             <label className="label">Tỉnh/Thành (tuỳ chọn)</label>
             <input
-              className="input"
-              name="city"
-              value={form.city}
-              onChange={onChange}
+              className="input" name="city" value={form.city} onChange={onChange}
               placeholder="VD: TP. Hồ Chí Minh"
             />
           </div>
-
           {msg && <div className="muted" style={{ marginTop: 8 }}>{msg}</div>}
-
           <div className="modal-actions" style={{ marginTop: 12 }}>
             <Link to="/" className="btn">Về trang chủ</Link>
             <button className="btn btn-primary" disabled={saving}>
@@ -123,7 +98,6 @@ export default function ShippingInfoPage() {
           </div>
         </form>
       </div>
-
       <p className="muted" style={{ marginTop: 12 }}>
         * Thông tin này sẽ được dùng khi bạn đặt hàng.
       </p>

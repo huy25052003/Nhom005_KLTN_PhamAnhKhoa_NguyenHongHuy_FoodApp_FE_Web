@@ -17,7 +17,6 @@ export default function AdminLoginPage() {
     onSuccess: ({ accessToken }) => {
       setToken(accessToken);
       http.defaults.headers.common.Authorization = `Bearer ${accessToken}`;
-
       const params = new URLSearchParams(location.search);
       const redirect = params.get("redirect");
       setTimeout(() => nav(redirect || "/cart", { replace: true }), 0);
@@ -29,8 +28,8 @@ export default function AdminLoginPage() {
   });
 
   return (
-    <div className="login-page">
-      <form className="card login-card" onSubmit={(e)=>{e.preventDefault(); mutate();}}>
+    <div className="login-page fade-in">
+      <form className="card login-card card-hover" onSubmit={(e)=>{e.preventDefault(); mutate();}}>
         <h1 className="card-title">Đăng nhập</h1>
         <input className="input" value={username} onChange={(e)=>setUsername(e.target.value)} placeholder="Tên đăng nhập" autoComplete="username" />
         <div style={{height:8}} />

@@ -22,7 +22,7 @@ export default function FavoritesPage() {
         setData(res);
       } finally { setLoading(false); }
     })();
-  }, [token, page, size, nav]); 
+  }, [token, page, size, nav]);
 
   if (loading) return <div className="container section">Đang tải…</div>;
 
@@ -30,7 +30,7 @@ export default function FavoritesPage() {
   const totalPages = Math.max(1, data?.totalPages || 1);
 
   return (
-    <div className="container section">
+    <div className="container section fade-in">
       <h1 className="h1">Sản phẩm yêu thích</h1>
 
       {!items.length ? (
@@ -43,21 +43,20 @@ export default function FavoritesPage() {
       ) : (
         <div className="grid4">
           {items.map(p => (
-            <div key={p.id} className="card product-card">
+            <div key={p.id} className="card product-card card-hover">
               <Link to={`/products/${p.id}`} className="product-image-link">
-                <img
-                  src={p.imageUrl || "/placeholder.jpg"}
-                  alt={p.name}
-                  loading="lazy"
-                  onError={(e) => { e.currentTarget.src = "/placeholder.jpg"; }}
-                  style={{
-                    width: '100%',
-                    height: '160px',
-                    objectFit: 'cover', 
-                    borderRadius: '12px', 
-                    display: 'block' 
-                  }}
-                />
+                 <div className="product-thumb-wrapper">
+                    <img
+                      src={p.imageUrl || "/placeholder.jpg"}
+                      alt={p.name}
+                      loading="lazy"
+                      onError={(e) => { e.currentTarget.src = "/placeholder.jpg"; }}
+                      style={{
+                        width: '100%', height: '160px', objectFit: 'cover',
+                        borderRadius: '8px', display: 'block', transition: 'transform 0.3s ease'
+                      }}
+                    />
+                 </div>
               </Link>
               <div className="product-info">
                 <Link to={`/products/${p.id}`} className="product-name">{p.name}</Link>

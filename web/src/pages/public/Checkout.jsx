@@ -14,14 +14,12 @@ export default function CheckoutPage() {
   const [sp] = useSearchParams();
   const { token } = useAuth();
   const { setCount } = useCart();
-
   const [cart, setCart] = useState(null);
   const [method, setMethod] = useState("COD");
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
   const [promoCode, setPromoCode] = useState("");
   const [cartActionLoading, setCartActionLoading] = useState(false);
-
   const [shipping, setShipping] = useState(null);
   const isShippingValid = !!(shipping && shipping.phone && shipping.addressLine);
 
@@ -108,28 +106,24 @@ export default function CheckoutPage() {
       nav(`/account/shipping?redirect=${encodeURIComponent("/checkout")}`);
       return;
     }
-
     setPlacing(true);
     try {
       const orderItemsPayload = items.map(it => ({
         product: { id: it.product?.id },
         quantity: it.quantity
       }));
-
       const shippingInfoPayload = {
          phone: shipping.phone,
          addressLine: shipping.addressLine,
          city: shipping.city || "",
          note: shipping.note || ""
       };
-
       const requestPayload = {
         items: orderItemsPayload,
         shippingInfo: shippingInfoPayload,
         paymentMethod: method,
         promoCode: promoCode.trim() || null
       };
-
       const order = await placeOrder(requestPayload);
       if (!order?.id) throw new Error("Không tạo được đơn hàng.");
 
@@ -139,7 +133,6 @@ export default function CheckoutPage() {
         nav(`/order-success/${order.id}`);
         return;
       }
-
       if (order.paymentMethod === "PAYOS") {
         try { sessionStorage.setItem("lastPayOrderId", String(order.id)); } catch {}
         const payUrl = await createPaymentLink(order.id);
@@ -158,10 +151,10 @@ export default function CheckoutPage() {
   if (loading && !cart) return <div className="container section">Đang tải trang thanh toán…</div>;
 
   return (
-    <div className="container section">
+    <div className="container section fade-in">
       <h1 className="h1">Giỏ hàng & Thanh toán</h1>
       <div className="grid2">
-        <div className="card">
+        <div className="card card-hover">
           <div className="card-title">Giỏ hàng của bạn</div>
           {loading && <div>Đang cập nhật giỏ hàng...</div>}
           {!items.length ? (
@@ -239,7 +232,7 @@ export default function CheckoutPage() {
             </>
           )}
         </div>
-        <div className="card">
+        <div className="card card-hover">
           <div className="card-title">Thông tin giao hàng</div>
           {loading && !shipping && <div>Đang tải thông tin...</div>}
           {!isShippingValid && !loading && (

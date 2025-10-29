@@ -24,7 +24,7 @@ export default function RegisterPage() {
     },
     onSuccess: ({ accessToken }) => {
       setToken(accessToken);
-      nav("/"); 
+      nav("/");
     },
     onError: (err) => {
       const msg = err?.message || "Đăng ký thất bại";
@@ -38,8 +38,8 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen grid place-items-center">
-      <form onSubmit={onSubmit} className="w-full max-w-sm border rounded-2xl p-5 space-y-3 bg-white">
+    <div className="min-h-screen grid place-items-center fade-in">
+      <form onSubmit={onSubmit} className="w-full max-w-sm border rounded-2xl p-5 space-y-3 bg-white card-hover">
         <h1 className="text-xl font-semibold">Tạo tài khoản</h1>
 
         <input

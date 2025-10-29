@@ -12,7 +12,6 @@ export default function CategoryProductsPage() {
   const [catName, setCatName] = useState("");
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
-
   const { token } = useAuth();
   const { setCount } = useCart();
 
@@ -50,7 +49,7 @@ export default function CategoryProductsPage() {
   }
 
   return (
-    <div className="container section">
+    <div className="container section fade-in">
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <h1 className="h1" style={{ margin: 0 }}>{catName}</h1>
         <Link to="/" className="btn btn-ghost" style={{ marginLeft: "auto" }}>← Về trang chủ</Link>
@@ -61,15 +60,17 @@ export default function CategoryProductsPage() {
           <div className="muted">Đang tải…</div>
         ) : items.length ? (
           items.map((it) => (
-            <div key={it.id} className="card product-card">
+            <div key={it.id} className="card product-card card-hover">
               <Link to={`/products/${it.id}`}>
-                <img
-                  className="product-img"
-                  src={it.imageUrl || "/placeholder.jpg"}
-                  alt={it.name}
-                  style={{ width: "100%", height: 180, objectFit: "cover", borderRadius: 8 }}
-                  loading="lazy"
-                />
+                <div className="product-thumb-wrapper">
+                  <img
+                    className="product-img"
+                    src={it.imageUrl || "/placeholder.jpg"}
+                    alt={it.name}
+                    style={{ width: "100%", height: 180, objectFit: "cover", borderRadius: 8, display: 'block', transition: 'transform 0.3s ease' }}
+                    loading="lazy"
+                  />
+                </div>
               </Link>
               <div className="product-info">
                 <Link to={`/products/${it.id}`} className="product-name">

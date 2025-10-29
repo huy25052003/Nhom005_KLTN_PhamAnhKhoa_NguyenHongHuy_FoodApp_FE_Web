@@ -95,7 +95,7 @@ export default function ProductDetailPage() {
   if (!product) return <div className="container section">Không tìm thấy sản phẩm</div>;
 
   return (
-    <div className="container section product-detail">
+    <div className="container section product-detail fade-in">
       <div className="pd-head">
         <div className="pd-media">
           <img
@@ -111,7 +111,6 @@ export default function ProductDetailPage() {
             <Stars value={avgRating} /> <span className="pd-avg-num">({avgRating.toFixed(1)})</span>
           </div>
           {product.description && <p className="pd-desc">{product.description}</p>}
-
           <div className="pd-cart">
             <label className="qty-label">Số lượng</label>
             <div className="qty-box">
@@ -150,7 +149,6 @@ export default function ProductDetailPage() {
 
       <div className="pd-reviews">
         <h2>Đánh giá</h2>
-
         {loadingReviews ? (
           <div>Đang tải đánh giá…</div>
         ) : reviews.length === 0 ? (
@@ -182,7 +180,6 @@ export default function ProductDetailPage() {
             ))}
           </ul>
         )}
-
         <div className="review-form">
           <h3>Viết đánh giá</h3>
           {!token ? (
@@ -200,7 +197,6 @@ export default function ProductDetailPage() {
                   <option key={n} value={n}>{n}</option>
                 ))}
               </select>
-
               <label className="label">Nhận xét</label>
               <textarea
                 className="input"
@@ -209,7 +205,6 @@ export default function ProductDetailPage() {
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
               />
-
               <button className="btn btn-primary" disabled={createMut.isPending}>
                 {createMut.isPending ? "Đang gửi…" : "Gửi đánh giá"}
               </button>
