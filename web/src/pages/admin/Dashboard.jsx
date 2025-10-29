@@ -59,10 +59,12 @@ export default function Dashboard() {
   const totalOrders = ordersPage.totalElements ?? recentOrders.length;
   const totalProducts = Array.isArray(productsData) ? productsData.length : 0;
 
-  const recentRevenue = recentOrders.reduce((sum, o) => {
-    const t = o.total ?? o.amount ?? o.totalPrice ?? 0;
-    return sum + (typeof t === "number" ? t : 0);
-  }, 0);
+  const recentRevenue = recentOrders
+    .filter(o => (o.status || "").toUpperCase() === "CONFIRMED") 
+    .reduce((sum, o) => {
+      const t = o.total ?? o.amount ?? o.totalPrice ?? 0;
+      return sum + (typeof t === "number" ? t : 0);
+    }, 0);
 
   const { mutate: mutateStatus, isPending: savingStatus } = useMutation({
     mutationFn: ({ id, status }) => updateOrderStatus(id, status),
