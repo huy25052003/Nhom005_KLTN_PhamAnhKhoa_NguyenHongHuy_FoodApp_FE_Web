@@ -22,6 +22,7 @@ import PaymentResultPage from "./pages/public/PaymentResult.jsx";
 import ShippingInfoPage from "./pages/public/ShippingInfo.jsx";
 import FavoritesPage from "./pages/public/Favorites.jsx";
 import AdminInvoice from "./pages/admin/AdminInvoice.jsx";
+import MenuPage from "./pages/public/MenuPage.jsx";
 
 export default function App() {
   return (
@@ -36,9 +37,9 @@ export default function App() {
         <Route path="/checkout" element={<CheckoutPage />} />
         <Route path="/account/shipping" element={<ShippingInfoPage />} />
         <Route path="/pay/result" element={<PaymentResultPage />} />
+        <Route path="/menu" element={<MenuPage />} />
         <Route path="/favorites" element={<FavoritesPage />} />
         <Route path="/order-success/:id" element={<OrderSuccessPage />} />
-        <Route path="/menu" element={<div className="container section">Trang Thực đơn (đang phát triển)</div>} />
         <Route path="/party" element={<div className="container section">Đặt tiệc (đang phát triển)</div>} />
         <Route path="/order" element={<div className="container section">Đặt hàng (đang phát triển)</div>} />
         <Route path="/blog" element={<div className="container section">Tin tức (đang phát triển)</div>} />

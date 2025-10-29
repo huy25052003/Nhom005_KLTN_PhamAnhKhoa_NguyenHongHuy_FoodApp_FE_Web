@@ -1,17 +1,15 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import SockJS from "sockjs-client";
 import { Client } from "@stomp/stompjs";
 import { listNotifications, unreadCount, markRead, markReadAll } from "../../api/notifications.js";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8080";
-const WS_URL = (import.meta.env.VITE_WS_URL || `${API_BASE}/ws`).replace(/\/+$/, ""); // bỏ dấu / thừa
+const WS_URL = (import.meta.env.VITE_WS_URL || `${API_BASE}/ws`).replace(/\/+$/, "");
 
 const fmtVND = (n) => (Number(n || 0)).toLocaleString("vi-VN") + " đ";
 
-/** Chuẩn hoá mọi payload về 1 dạng mà UI hiểu được */
 function normalizeItem(raw) {
-  // Trường hợp payload đã là Notification trong DB
   if (raw && (raw.title || raw.message)) {
     return {
       id: raw.id ?? `tmp-${Date.now()}`,
@@ -22,8 +20,6 @@ function normalizeItem(raw) {
       createdAt: raw.createdAt ?? new Date().toISOString(),
     };
   }
-
-  // Trường hợp payload là AdminOrderNotice (orderId, username, total, status, createdAt)
   if (raw && (raw.orderId || raw.status || raw.username || raw.total)) {
     return {
       id: `tmp-${Date.now()}`,
@@ -38,8 +34,6 @@ function normalizeItem(raw) {
       createdAt: raw.createdAt ?? new Date().toISOString(),
     };
   }
-
-  // fallback
   return {
     id: `tmp-${Date.now()}`,
     title: "Thông báo",
@@ -56,6 +50,13 @@ export default function AdminNotifyBell() {
   const [unread, setUnread] = useState(0);
   const stompRef = useRef(null);
 
+  const audioRef = useMemo(() => {
+      if (typeof Audio !== "undefined") {
+         return new Audio('/notification.mp3');
+      }
+      return null;
+  }, []);
+
   async function load() {
     try {
       const [lst, count] = await Promise.all([
@@ -64,9 +65,7 @@ export default function AdminNotifyBell() {
       ]);
       setItems(Array.isArray(lst) ? lst.map(normalizeItem) : []);
       setUnread(Number(count || 0));
-    } catch {
-      // bỏ qua
-    }
+    } catch {}
   }
 
   useEffect(() => {
@@ -75,37 +74,35 @@ export default function AdminNotifyBell() {
     const client = new Client({
       webSocketFactory: () => new SockJS(WS_URL),
       reconnectDelay: 3000,
-      debug: () => {}, // bật log nếu cần
+      debug: () => {},
     });
 
     client.onConnect = () => {
-      // Admin nhận thông báo đơn hàng mới
       client.subscribe("/topic/admin/orders", (frame) => {
         try {
           const raw = JSON.parse(frame.body);
           const n = normalizeItem(raw);
           setItems((prev) => [n, ...(prev ?? [])].slice(0, 100));
           setUnread((u) => Math.max(0, (u ?? 0) + 1));
-        } catch {
-          // ignore
-        }
-      });
 
-      // (tuỳ chọn) nhận tổng unread do BE bắn realtime
+          audioRef?.play().catch(error => {
+              console.warn("Không thể tự động phát âm thanh thông báo:", error);
+          });
+
+        } catch {}
+      });
       client.subscribe("/topic/admin/notification-count", (frame) => {
         try {
           const n = JSON.parse(frame.body);
           setUnread(Math.max(0, Number(n || 0)));
-        } catch {
-          // ignore
-        }
+        } catch {}
       });
     };
 
     client.activate();
     stompRef.current = client;
     return () => client.deactivate();
-  }, []);
+  }, [audioRef]);
 
   async function onMarkRead(id) {
     try {
@@ -150,12 +147,12 @@ export default function AdminNotifyBell() {
                 {n.message && <div className="muted small">{n.message}</div>}
                 <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
                   {n.orderId && (
-                    <Link className="btn btn-ghost" to={`/admin/orders/${n.orderId}`}>
+                    <Link className="btn btn-ghost" to={`/admin/orders?q=${n.orderId}`}>
                       Xem đơn
                     </Link>
                   )}
                   {!n.readFlag && (
-                    <button className="btn" onClick={() => onMarkRead(n.id)}>
+                    <button className="btn btn-small" onClick={() => onMarkRead(n.id)}>
                       Đã đọc
                     </button>
                   )}
@@ -176,7 +173,8 @@ export default function AdminNotifyBell() {
         .dropdown-body { max-height:60vh; overflow:auto; }
         .notify-item { padding:10px; border-bottom:1px dashed #eee;}
         .small { font-size: 12px; }
+        .btn-small { padding: 6px 10px; font-size: 0.8rem; border-radius: 8px; }
       `}</style>
     </div>
   );
-}
+} 
