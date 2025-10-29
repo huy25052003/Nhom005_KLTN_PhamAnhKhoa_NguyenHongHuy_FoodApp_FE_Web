@@ -14,12 +14,14 @@ export default function CheckoutPage() {
   const [sp] = useSearchParams();
   const { token } = useAuth();
   const { setCount } = useCart();
+
   const [cart, setCart] = useState(null);
   const [method, setMethod] = useState("COD");
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
   const [promoCode, setPromoCode] = useState("");
   const [cartActionLoading, setCartActionLoading] = useState(false);
+
   const [shipping, setShipping] = useState(null);
   const isShippingValid = !!(shipping && shipping.phone && shipping.addressLine);
 
@@ -106,24 +108,28 @@ export default function CheckoutPage() {
       nav(`/account/shipping?redirect=${encodeURIComponent("/checkout")}`);
       return;
     }
+
     setPlacing(true);
     try {
       const orderItemsPayload = items.map(it => ({
         product: { id: it.product?.id },
         quantity: it.quantity
       }));
+
       const shippingInfoPayload = {
          phone: shipping.phone,
          addressLine: shipping.addressLine,
          city: shipping.city || "",
          note: shipping.note || ""
       };
+
       const requestPayload = {
         items: orderItemsPayload,
         shippingInfo: shippingInfoPayload,
         paymentMethod: method,
         promoCode: promoCode.trim() || null
       };
+
       const order = await placeOrder(requestPayload);
       if (!order?.id) throw new Error("Không tạo được đơn hàng.");
 
@@ -133,6 +139,7 @@ export default function CheckoutPage() {
         nav(`/order-success/${order.id}`);
         return;
       }
+
       if (order.paymentMethod === "PAYOS") {
         try { sessionStorage.setItem("lastPayOrderId", String(order.id)); } catch {}
         const payUrl = await createPaymentLink(order.id);

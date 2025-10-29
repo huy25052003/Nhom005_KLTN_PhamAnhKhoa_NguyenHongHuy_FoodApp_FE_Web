@@ -23,6 +23,7 @@ import ShippingInfoPage from "./pages/public/ShippingInfo.jsx";
 import FavoritesPage from "./pages/public/Favorites.jsx";
 import AdminInvoice from "./pages/admin/AdminInvoice.jsx";
 import MenuPage from "./pages/public/MenuPage.jsx";
+import AdminUsersPage from "./pages/admin/Users.jsx";
 
 export default function App() {
   return (
@@ -60,6 +61,7 @@ export default function App() {
         <Route path="orders" element={<OrdersPage />} />
         <Route path="categories" element={<CategoriesPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="users" element={<AdminUsersPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
