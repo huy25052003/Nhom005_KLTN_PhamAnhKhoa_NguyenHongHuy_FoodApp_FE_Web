@@ -28,15 +28,17 @@ function KitchenOrderCard({ order, onUpdateStatus, isPending }) {
   
   return (
     <div 
+      id={`order-${order.id}`} 
       key={order.id} 
       className={`card order-card-kitchen card-hover ${order.status === 'CONFIRMED' ? 'status-confirmed' : 'status-preparing'}`}
+      style={{scrollMarginTop: '80px'}} 
     >
       <div className="order-header">
         <span className="order-id">#{order.id}</span>
         <span className="order-date muted">{fmtTime(order.createdAt)}</span>
         <span className={`badge ${order.status}`}>{order.status}</span>
       </div>
-      
+
       <div className="order-items-list-kitchen">
         {(order.items || []).map(item => (
           <div key={item.id} className="kitchen-item">
@@ -127,7 +129,6 @@ export default function KitchenDashboard() {
 
   return (
     <div className="page-kitchen">
-      <h1 className="h1">Đơn hàng Bếp</h1>
       
       {isLoading && (
           <div className="card" style={{padding: 32, textAlign: 'center'}}>
@@ -157,6 +158,7 @@ export default function KitchenDashboard() {
             ))}
           </div>
         </section>
+        
         <section className="kitchen-column">
           <h2 className="column-title">
             Đang chuẩn bị ({preparingOrders.length})
@@ -198,13 +200,11 @@ export default function KitchenDashboard() {
           background: var(--bg-alt);
           z-index: 10;
         }
-        
         .kitchen-grid {
           display: grid;
           grid-template-columns: 1fr;
           gap: 1rem;
         }
-        
         .order-card-kitchen {
           padding: 1rem;
           display: flex;
@@ -220,7 +220,6 @@ export default function KitchenDashboard() {
             border-color: #c7d2fe;
             background: #eef2ff;
         }
-        
         .order-card-kitchen .order-header {
           display: flex;
           justify-content: space-between;
@@ -230,10 +229,7 @@ export default function KitchenDashboard() {
           margin-bottom: 0.75rem;
         }
         .order-card-kitchen .order-id { font-weight: 700; font-size: 1.15rem; }
-        
-        .order-items-list-kitchen {
-          flex-grow: 1;
-        }
+        .order-items-list-kitchen { flex-grow: 1; }
         .kitchen-item {
           display: flex;
           gap: 0.75rem;
@@ -241,9 +237,7 @@ export default function KitchenDashboard() {
           font-size: 1.05rem;
           border-bottom: 1px dashed #ccc;
         }
-        .kitchen-item:last-child {
-            border-bottom: none;
-        }
+        .kitchen-item:last-child { border-bottom: none; }
         .kitchen-item .item-qty { 
           font-weight: 800; 
           font-size: 1.1rem;
@@ -251,26 +245,11 @@ export default function KitchenDashboard() {
           min-width: 40px;
           text-align: right;
         }
-        .kitchen-item .item-name { 
-          font-weight: 600; 
-          color: var(--text);
-        }
-        
-        .order-actions { 
-            margin-top: 1rem;
-            padding-top: 0.75rem; 
-            border-top: 1px solid var(--border);
-        }
-        
+        .kitchen-item .item-name { font-weight: 600; color: var(--text); }
+        .order-actions { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border); }
         @media (max-width: 900px) {
-          .kitchen-columns {
-            grid-template-columns: 1fr; 
-            height: auto;
-          }
-          .kitchen-column {
-             height: auto;
-             max-height: 60vh;
-          }
+          .kitchen-columns { grid-template-columns: 1fr; }
+          .kitchen-column { height: auto; max-height: 60vh; }
         }
       `}</style>
     </div>
