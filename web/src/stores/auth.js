@@ -8,6 +8,10 @@ export const useAuth = create((set) => ({
     r => r === "ROLE_ADMIN" || r === "ADMIN"
   ),
 
+  isKitchen: JSON.parse(localStorage.getItem("roles") || "[]").some(
+    r => r === "ROLE_KITCHEN" || r === "KITCHEN"
+  ),
+
   setToken: (token) => {
     let username = null;
     let roles = [];
@@ -23,13 +27,13 @@ export const useAuth = create((set) => ({
     if (username) localStorage.setItem("username", username); else localStorage.removeItem("username");
     localStorage.setItem("roles", JSON.stringify(roles));
 
-    set({ token, username, roles, isAdmin: roles.some(r => r === "ROLE_ADMIN" || r === "ADMIN") });
+    set({ token, username, roles, isAdmin: roles.some(r => r === "ROLE_ADMIN" || r === "ADMIN"),isKitchen: roles.some(r => r === "ROLE_KITCHEN" || r === "KITCHEN") });
   },
 
   logout: () => {
     localStorage.removeItem("token");
     localStorage.removeItem("username");
     localStorage.removeItem("roles");
-    set({ token: null, username: null, roles: [], isAdmin: false });
+    set({ token: null, username: null, roles: [], isAdmin: false, isKitchen: false });
   },
 }));

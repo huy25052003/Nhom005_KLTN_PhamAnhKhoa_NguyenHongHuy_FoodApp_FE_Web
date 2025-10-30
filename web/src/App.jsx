@@ -24,6 +24,9 @@ import FavoritesPage from "./pages/public/Favorites.jsx";
 import AdminInvoice from "./pages/admin/AdminInvoice.jsx";
 import MenuPage from "./pages/public/MenuPage.jsx";
 import AdminUsersPage from "./pages/admin/Users.jsx";
+import KitchenDashboard from "./pages/kitchen/KitchenDashboard.jsx";
+import ProtectedKitchen from "./component/ProtectedKitchen.jsx";
+import KitchenLayout from "./component/KitchenLayout.jsx";
 
 export default function App() {
   return (
@@ -63,6 +66,18 @@ export default function App() {
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="users" element={<AdminUsersPage />} />
       </Route>
+
+        <Route
+        path="/kitchen"
+        element={
+          <ProtectedKitchen>
+            <KitchenLayout />
+          </ProtectedKitchen>
+        }
+      >
+        <Route index element={<KitchenDashboard />} />
+      </Route>
+
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

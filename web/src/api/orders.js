@@ -75,3 +75,8 @@ export async function getOrderById(id) {
   const res = await http.get(`orders/${id}`);
   return res.data;
 }
+
+export async function getKitchenOrders() {
+  const res = await http.get("/kitchen/orders");
+  return res.data;
+}
