@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { getProfile, updateProfile } from "../../api/users";
+import { getProfile, updateProfile, getMe } from "../../api/users";
+import EmailVerification from "../../component/EmailVerification";
 
 export default function AccountProfilePage() {
+  const [user, setUser] = useState(null);
+  
   const [form, setForm] = useState({
     heightCm: "", weightKg: "", gender: "", allergies: "",
     dietaryPreference: "", targetCalories: "", activityLevel: "", birthDate: ""
@@ -13,14 +16,23 @@ export default function AccountProfilePage() {
     let stop = false;
     (async () => {
       try {
-        const data = await getProfile();
+        const [profileData, userData] = await Promise.all([
+          getProfile().catch(() => null),
+          getMe().catch(() => null)
+        ]);
+        
         if (stop) return;
-        setForm({
-          heightCm: data?.heightCm ?? "", weightKg: data?.weightKg ?? "",
-          gender: data?.gender ?? "", allergies: data?.allergies ?? "",
-          dietaryPreference: data?.dietaryPreference ?? "", targetCalories: data?.targetCalories ?? "",
-          activityLevel: data?.activityLevel ?? "", birthDate: data?.birthDate ?? ""
-        });
+
+        if (userData) setUser(userData);
+
+        if (profileData) {
+          setForm({
+            heightCm: profileData?.heightCm ?? "", weightKg: profileData?.weightKg ?? "",
+            gender: profileData?.gender ?? "", allergies: profileData?.allergies ?? "",
+            dietaryPreference: profileData?.dietaryPreference ?? "", targetCalories: profileData?.targetCalories ?? "",
+            activityLevel: profileData?.activityLevel ?? "", birthDate: profileData?.birthDate ?? ""
+          });
+        }
       } catch (e) {
         console.error(e);
         alert("Không tải được hồ sơ.");
@@ -30,6 +42,10 @@ export default function AccountProfilePage() {
     })();
     return () => { stop = true; };
   }, []);
+
+  const handleEmailVerified = (updatedUser) => {
+    setUser(updatedUser);
+  };
 
   function onChange(e) {
     const { name, value } = e.target;
@@ -65,6 +81,12 @@ export default function AccountProfilePage() {
   return (
     <div className="container section fade-in">
       <h1 className="h2">Hồ sơ của tôi</h1>
+
+      {user && (
+        <EmailVerification user={user} onVerified={handleEmailVerified} />
+      )}
+      <div style={{ height: 24 }} /> 
+
       <form className="card card-hover" onSubmit={onSubmit} style={{ maxWidth: 720 }}>
         <div className="grid-2 gap-3">
           <div>

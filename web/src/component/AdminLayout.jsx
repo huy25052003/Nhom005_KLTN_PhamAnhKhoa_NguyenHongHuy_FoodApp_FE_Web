@@ -14,6 +14,7 @@ export default function AdminLayout() {
         <NavLink to="/admin/orders" className={linkClass}>Đơn hàng</NavLink>
         <NavLink to="/admin/analytics" className={linkClass}>Thống kê</NavLink>
         <NavLink to="/admin/users" className={linkClass}>Người dùng</NavLink>
+        <NavLink to="/admin/chat" className={linkClass}>CSKH / Chat</NavLink>
       </aside>
       <main className="container">
         <header className="admin-header"> 

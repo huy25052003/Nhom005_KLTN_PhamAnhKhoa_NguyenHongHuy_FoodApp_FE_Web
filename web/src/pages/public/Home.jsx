@@ -5,6 +5,7 @@ import { addToCart, getCart } from "../../api/cart.js";
 import { toggleFavorite, getFavoriteStat } from "../../api/favorites.js";
 import { useAuth } from "../../stores/auth.js";
 import { useCart } from "../../stores/cart.js";
+import { useChatStore } from "../../stores/chatStore.js";
 
 const samplePlans = [
   { name: "Gói FIT 3 Trưa - Tối", desc: "Best seller", price: 650000, badge: "Best seller" },
@@ -21,6 +22,7 @@ export default function HomePage() {
   const { token } = useAuth();
   const { setCount } = useCart();
   const nav = useNavigate();
+  const { open } = useChatStore();
 
   useEffect(() => {
     (async () => {
@@ -97,7 +99,9 @@ export default function HomePage() {
             <p>Trải nghiệm bữa ăn sạch tươi ngon, giàu dinh dưỡng — lên plan theo mục tiêu của bạn.</p>
             <div className="hero-actions">
               <Link to="/order" className="btn btn-primary">Đặt ngay</Link>
-              <a href="#" className="btn btn-ghost">Tư vấn</a>
+              <button onClick={open} className="btn btn-ghost">
+                Tư vấn
+              </button>
             </div>
             <ul className="hero-usps">
               <li>Giao tận nơi mỗi ngày</li>
