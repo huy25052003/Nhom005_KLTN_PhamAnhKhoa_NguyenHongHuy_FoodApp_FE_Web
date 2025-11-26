@@ -1,256 +1,239 @@
-import React, { useEffect, useRef, useMemo } from "react";
+import React, { useEffect, useRef, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getKitchenOrders, updateOrderStatus } from "../../api/orders.js";
+import { getKitchenOrders } from "../../api/orders.js";
+import http from "../../lib/http"; 
 import SockJS from "sockjs-client";
 import { Client } from "@stomp/stompjs";
 import { useAuth } from "../../stores/auth.js";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080/api";
-const WS_URL_BASE = API_BASE_URL.replace("/api", ""); 
-const WS_URL = `${WS_URL_BASE}/ws`;
-
+const WS_URL = API_BASE_URL.replace("/api", "") + "/ws";
 const notificationAudio = new Audio('/notification.mp3');
-
-const fmtTime = (s) => { 
-  try { 
-    const date = new Date(s);
-    return date.toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' });
-  } catch { return s || ""; } 
-};
-
-const KITCHEN_ACTIONS = {
-  CONFIRMED: { next: "PREPARING", label: "Bắt đầu chuẩn bị" },
-  PREPARING: { next: "DELIVERING", label: "Hoàn tất (Giao hàng)" },
-};
-
-function KitchenOrderCard({ order, onUpdateStatus, isPending }) {
-  const action = KITCHEN_ACTIONS[order.status];
-  
-  return (
-    <div 
-      id={`order-${order.id}`} 
-      key={order.id} 
-      className={`card order-card-kitchen card-hover ${order.status === 'CONFIRMED' ? 'status-confirmed' : 'status-preparing'}`}
-      style={{scrollMarginTop: '80px'}} 
-    >
-      <div className="order-header">
-        <span className="order-id">#{order.id}</span>
-        <span className="order-date muted">{fmtTime(order.createdAt)}</span>
-        <span className={`badge ${order.status}`}>{order.status}</span>
-      </div>
-
-      <div className="order-items-list-kitchen">
-        {(order.items || []).map(item => (
-          <div key={item.id} className="kitchen-item">
-            <span className="item-qty">{item.quantity} x</span>
-            <span className="item-name">{item.product?.name || "Sản phẩm"}</span>
-          </div>
-        ))}
-      </div>
-      
-      {action && (
-        <div className="order-actions">
-          <button 
-            className={`btn w-full ${order.status === 'CONFIRMED' ? 'btn-primary' : 'btn'}`}
-            disabled={isPending}
-            onClick={() => onUpdateStatus(order.id, action.next, action.label)}
-          >
-            {isPending ? "Đang cập nhật..." : action.label}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
 
 export default function KitchenDashboard() {
   const qc = useQueryClient();
-  const stompRef = useRef(null);
-  const { token } = useAuth(); 
+  const { token, username } = useAuth(); // Lấy user hiện tại để biết món nào "Của mình"
+  
+  // State lọc theo món (Focus Mode)
+  const [filterProductId, setFilterProductId] = useState(null);
 
+  // 1. Lấy dữ liệu Đơn hàng (Polling dự phòng mỗi 10s)
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["kitchenOrders"],
     queryFn: getKitchenOrders,
-    refetchOnWindowFocus: true,
+    refetchInterval: 10000, 
   });
 
-  const { mutate: updateStatus, isPending } = useMutation({
-    mutationFn: ({ id, status }) => updateOrderStatus(id, status),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["kitchenOrders"] });
-    },
-    onError: (e) => alert(e?.response?.data?.message || e?.message || "Cập nhật thất bại"),
+  // 2. API gọi khi bấm nút (Nhận / Xong)
+  const { mutate: updateItem } = useMutation({
+    mutationFn: ({ itemId, status }) => 
+      http.put(`/kitchen/items/${itemId}/status`, null, { params: { status } }),
+    // Không cần onSuccess invalidate ngay vì Socket sẽ làm việc đó
+    onError: (e) => alert(e?.response?.data?.message || "Lỗi cập nhật"),
   });
 
+  // 3. Tính toán REAL-TIME: Bảng Tổng Hợp & Danh sách hiển thị
+  // (Chạy lại ngay lập tức mỗi khi `orders` thay đổi)
+  const { aggregated, displayOrders } = useMemo(() => {
+    const aggMap = {};
+    const activeOrders = [];
+
+    // Chỉ quan tâm đơn CHƯA XONG HẾT
+    const relevantOrders = orders.filter(o => ['CONFIRMED', 'PREPARING'].includes(o.status));
+
+    relevantOrders.forEach(order => {
+        let orderHasTargetItem = false;
+
+        order.items.forEach(item => {
+            if (item.status === 'DONE') return; // Bỏ qua món đã xong
+
+            // Tính tổng hợp (Aggregated)
+            const pid = item.product?.id;
+            if (!aggMap[pid]) aggMap[pid] = { 
+                id: pid, 
+                name: item.product?.name, 
+                total: 0, 
+                cooking: 0 
+            };
+            
+            aggMap[pid].total += item.quantity;
+            if (item.status === 'COOKING') aggMap[pid].cooking += item.quantity;
+
+            // Kiểm tra bộ lọc
+            if (String(pid) === String(filterProductId)) orderHasTargetItem = true;
+        });
+
+        // Logic lọc đơn hàng hiển thị bên dưới
+        if (!filterProductId || orderHasTargetItem) {
+            activeOrders.push(order);
+        }
+    });
+
+    return { 
+        aggregated: Object.values(aggMap), 
+        displayOrders: activeOrders.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)) 
+    };
+  }, [orders, filterProductId]);
+
+  // 4. SOCKET LISTENER (Cốt lõi Real-time)
   useEffect(() => {
     const client = new Client({
       webSocketFactory: () => new SockJS(WS_URL),
       connectHeaders: { Authorization: `Bearer ${token}` },
-      reconnectDelay: 3000,
+      onConnect: () => {
+        // Nghe tin Đơn mới
+        client.subscribe("/topic/kitchen/new-order", () => {
+           notificationAudio.play().catch(()=>{});
+           qc.invalidateQueries(["kitchenOrders"]); // Reload data
+        });
+        
+        // Nghe tin Cập nhật trạng thái (từ bếp khác)
+        client.subscribe("/topic/kitchen/update", () => {
+           qc.invalidateQueries(["kitchenOrders"]); // Reload data ngay lập tức
+        });
+      },
     });
-
-    client.onConnect = () => {
-      client.subscribe("/topic/kitchen/new-order", (frame) => {
-        try {
-          notificationAudio.play().catch(e => console.warn("Audio play failed:", e));
-          const newOrder = JSON.parse(frame.body);
-          qc.setQueryData(["kitchenOrders"], (oldData = []) => {
-            if (oldData.some(o => o.id === newOrder.id)) return oldData;
-            return [...oldData, newOrder];
-          });
-        } catch(e) { console.error("WS message parse error:", e); }
-      });
-    };
-    
     client.activate();
-    stompRef.current = client;
-    return () => { client.deactivate(); };
-  }, [qc, token]);
-
-  const [confirmedOrders, preparingOrders] = useMemo(() => {
-    const confirmed = [];
-    const preparing = [];
-    (orders || []).forEach(order => {
-      if (order.status === 'CONFIRMED') {
-        confirmed.push(order);
-      } else if (order.status === 'PREPARING') {
-        preparing.push(order);
-      }
-    });
-    const sortFn = (a, b) => new Date(a.createdAt) - new Date(b.createdAt);
-    return [confirmed.sort(sortFn), preparing.sort(sortFn)];
-  }, [orders]);
-
-  const handleUpdateStatus = (id, status, label) => {
-    if (confirm(`Bạn muốn "${label}" cho đơn #${id}?`)) {
-      updateStatus({ id, status });
-    }
-  };
+    return () => client.deactivate();
+  }, [token, qc]);
 
   return (
-    <div className="page-kitchen">
+    <div className="page-kitchen fade-in">
       
-      {isLoading && (
-          <div className="card" style={{padding: 32, textAlign: 'center'}}>
-              <div className="loading">Đang tải danh sách đơn...</div>
-          </div>
-      )}
-      
-      {!isLoading && orders.length === 0 && (
-        <div className="card muted" style={{ textAlign: 'center', padding: '2rem' }}>
-          Không có đơn hàng nào cần chuẩn bị.
+      {/* --- KHU VỰC 1: BẢNG TỔNG HỢP (AGGREGATED) --- */}
+      <div className="kds-header-card">
+        <div className="flex-row space-between">
+            <h2 className="h3" style={{margin:0}}>👨‍🍳 Bếp Tổng (KDS Real-time)</h2>
+            {filterProductId && (
+                <button className="btn btn-danger btn-small" onClick={() => setFilterProductId(null)}>
+                    ✕ Bỏ lọc
+                </button>
+            )}
         </div>
-      )}
-
-      <div className="kitchen-columns">
-        <section className="kitchen-column">
-          <h2 className="column-title">
-            Chờ chuẩn bị ({confirmedOrders.length})
-          </h2>
-          <div className="kitchen-grid">
-            {confirmedOrders.map(order => (
-              <KitchenOrderCard 
-                key={order.id} 
-                order={order} 
-                onUpdateStatus={handleUpdateStatus}
-                isPending={isPending}
-              />
-            ))}
-          </div>
-        </section>
         
-        <section className="kitchen-column">
-          <h2 className="column-title">
-            Đang chuẩn bị ({preparingOrders.length})
-          </h2>
-          <div className="kitchen-grid">
-            {preparingOrders.map(order => (
-              <KitchenOrderCard 
-                key={order.id} 
-                order={order} 
-                onUpdateStatus={handleUpdateStatus}
-                isPending={isPending}
-              />
-            ))}
-          </div>
-        </section>
+        <div className="agg-list">
+            {aggregated.length === 0 ? <div className="muted">Hết đơn!</div> :
+             aggregated.map(agg => {
+                const isActive = String(filterProductId) === String(agg.id);
+                return (
+                <button 
+                    key={agg.id}
+                    className={`agg-chip ${isActive ? 'active' : ''}`}
+                    onClick={() => setFilterProductId(isActive ? null : agg.id)}
+                >
+                    <span className="agg-name">{agg.name}</span>
+                    <div className="flex-col" style={{alignItems:'flex-end', lineHeight:1}}>
+                        <span className="agg-count">{agg.total}</span>
+                        {agg.cooking > 0 && <span className="agg-sub">Đang làm: {agg.cooking}</span>}
+                    </div>
+                </button>
+            )})}
+        </div>
       </div>
-      
+
+      {/* --- KHU VỰC 2: DANH SÁCH THẺ ĐƠN --- */}
+      <div className="kds-tickets-grid">
+        {displayOrders.map(order => (
+          <div key={order.id} className={`ticket-card ${order.status}`}>
+            
+            <div className="ticket-header">
+                <div>
+                    <div className="ticket-id">#{order.id}</div>
+                    <div className="ticket-time">{new Date(order.createdAt).toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'})}</div>
+                </div>
+                <div className={`status-dot ${order.status}`}></div>
+            </div>
+
+            <div className="ticket-body">
+                {order.items.map(item => {
+                    if (item.status === 'DONE') return null; // Ẩn món xong
+
+                    const isTarget = String(item.product?.id) === String(filterProductId);
+                    const isMine = item.chef?.username === username;
+                    const isTaken = item.status === 'COOKING' && item.chef;
+
+                    return (
+                        <div key={item.id} className={`ticket-item ${isTarget ? 'highlight' : ''} ${item.status}`}>
+                            <div className="item-info">
+                                <span className="qty">{item.quantity}</span>
+                                <span className="name">{item.product?.name}</span>
+                            </div>
+                            
+                            {/* NÚT BẤM HÀNH ĐỘNG */}
+                            <div className="item-action">
+                                {item.status === 'PENDING' ? (
+                                    <button className="btn-act start" onClick={() => updateItem({itemId: item.id, status: 'COOKING'})}>
+                                        Nhận
+                                    </button>
+                                ) : (
+                                    // Đang COOKING
+                                    isMine ? (
+                                        <button className="btn-act finish" onClick={() => updateItem({itemId: item.id, status: 'DONE'})}>
+                                            Xong
+                                        </button>
+                                    ) : (
+                                        <span className="locker">🔒 {item.chef?.username}</span>
+                                    )
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+          </div>
+        ))}
+      </div>
+
       <style>{`
-        .kitchen-columns {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 1.5rem;
+        .page-kitchen { padding: 16px; background: #f1f5f9; min-height: 100vh; }
+        
+        /* Header */
+        .kds-header-card { 
+            background: #fff; padding: 16px; border-radius: 12px; margin-bottom: 20px; 
+            border: 2px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         }
-        .kitchen-column {
-          background: var(--bg-alt);
-          border-radius: var(--radius);
-          padding: 1rem;
-          height: calc(100vh - 150px);
-          overflow-y: auto;
+        .agg-list { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+        .agg-chip {
+            border: 1px solid #cbd5e1; background: #f8fafc; padding: 8px 12px; border-radius: 8px;
+            display: flex; align-items: center; gap: 10px; cursor: pointer; text-align:left;
         }
-        .column-title {
-          font-size: 1.25rem;
-          font-weight: 700;
-          margin: 0 0 1rem 0;
-          padding-bottom: 0.5rem;
-          border-bottom: 1px solid var(--border);
-          position: sticky;
-          top: -1rem;
-          background: var(--bg-alt);
-          z-index: 10;
+        .agg-chip.active { background: #22c55e; color: #fff; border-color: #16a34a; }
+        .agg-chip.active .agg-count { background: rgba(255,255,255,0.2); color: #fff; }
+        .agg-chip.active .agg-sub { color: #dcfce7; }
+
+        .agg-name { font-weight: 600; font-size: 0.95rem; }
+        .agg-count { font-weight: 800; font-size: 1.2rem; background: #e2e8f0; padding: 2px 8px; border-radius: 4px; color: #0f172a; }
+        .agg-sub { font-size: 0.7rem; color: #ea580c; font-weight: 700; margin-top: 2px; }
+
+        /* Grid Tickets */
+        .kds-tickets-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+        .ticket-card {
+            background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            border-top: 5px solid #94a3b8; display: flex; flex-direction: column;
         }
-        .kitchen-grid {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 1rem;
+        .ticket-card.PREPARING { border-top-color: #f59e0b; } /* Cam: Đang làm */
+        
+        .ticket-header {
+            padding: 10px 12px; background: #f8fafc; border-bottom: 1px solid #eee;
+            display: flex; justify-content: space-between; align-items: center;
         }
-        .order-card-kitchen {
-          padding: 1rem;
-          display: flex;
-          flex-direction: column;
-          border-width: 1px;
-          box-shadow: var(--shadow);
+        .ticket-id { font-weight: 800; font-size: 1.1rem; color: #334155; }
+        
+        .ticket-item {
+            padding: 10px 12px; border-bottom: 1px dashed #eee; display: flex; justify-content: space-between; align-items: center;
         }
-        .order-card-kitchen.status-confirmed {
-            border-color: var(--primary);
-            background: #f0fdf4;
-        }
-        .order-card-kitchen.status-preparing {
-            border-color: #c7d2fe;
-            background: #eef2ff;
-        }
-        .order-card-kitchen .order-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding-bottom: 0.75rem;
-          border-bottom: 1px solid var(--border);
-          margin-bottom: 0.75rem;
-        }
-        .order-card-kitchen .order-id { font-weight: 700; font-size: 1.15rem; }
-        .order-items-list-kitchen { flex-grow: 1; }
-        .kitchen-item {
-          display: flex;
-          gap: 0.75rem;
-          padding: 0.5rem 0.25rem;
-          font-size: 1.05rem;
-          border-bottom: 1px dashed #ccc;
-        }
-        .kitchen-item:last-child { border-bottom: none; }
-        .kitchen-item .item-qty { 
-          font-weight: 800; 
-          font-size: 1.1rem;
-          color: var(--primary-600);
-          min-width: 40px;
-          text-align: right;
-        }
-        .kitchen-item .item-name { font-weight: 600; color: var(--text); }
-        .order-actions { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border); }
-        @media (max-width: 900px) {
-          .kitchen-columns { grid-template-columns: 1fr; }
-          .kitchen-column { height: auto; max-height: 60vh; }
-        }
+        .ticket-item.highlight { background: #dcfce7; }
+        .ticket-item.COOKING { background: #fff7ed; }
+        
+        .item-info { display: flex; gap: 8px; align-items: center; flex: 1; }
+        .qty { font-weight: 800; font-size: 1.1rem; min-width: 24px; }
+        .name { font-weight: 600; color: #0f172a; }
+        
+        .btn-act { border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.8rem; }
+        .btn-act.start { background: #e2e8f0; color: #334155; }
+        .btn-act.finish { background: #22c55e; color: #fff; }
+        
+        .locker { font-size: 0.75rem; color: #f59e0b; font-weight: 700; background: #fffbeb; padding: 4px 8px; border-radius: 4px; border: 1px solid #fcd34d; }
       `}</style>
     </div>
   );
