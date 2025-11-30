@@ -214,10 +214,10 @@ export default function HomePage() {
                   </div>
 
                   <div className="card-actions">
-                    <button className="btn" onClick={() => onAdd(it)}>
+                    <button className="btn btn-primary btn-sm" onClick={() => onAdd(it)}>
                       Thêm vào giỏ
                     </button>
-                    <Link to={`/products/${it.id}`} className="btn btn-ghost">
+                    <Link to={`/products/${it.id}`} className="btn btn-outline btn-sm">
                       Xem chi tiết
                     </Link>
                   </div>

@@ -4,8 +4,7 @@ import KitchenNotifyBell from "../pages/kitchen/KitchenNotifyBell.jsx";
 import { useAuth } from "../stores/auth.js";
 
 export default function KitchenLayout() {
-  const linkClass = ({ isActive }) => `nav-link ${isActive ? "active" : ""}`;
-  const { logout, isAdmin } = useAuth();
+  const { logout, isAdmin, username } = useAuth();
   const nav = useNavigate();
 
   const handleLogout = () => {
@@ -14,37 +13,54 @@ export default function KitchenLayout() {
   };
 
   return (
-    <div className="layout">
-      <aside className="sidebar">
-        <div className="sidebar-title">Kitchen</div>
-        <NavLink to="/kitchen" end className={linkClass}>
-          Đơn hàng Bếp
-        </NavLink>
-        
-        {isAdmin && (
-          <>
-            <hr style={{margin: '12px 0', border: 'none', borderTop: '1px solid var(--border)'}} />
-            <NavLink to="/admin" className={linkClass}>
-              ← Về Admin
-            </NavLink>
-          </>
-        )}
+    <div className="admin-layout">
+      {/* 1. SIDEBAR */}
+      <aside className="admin-sidebar">
+        <div className="sidebar-brand">
+          KITCHEN
+        </div>
+
+        <nav className="sidebar-menu">
+          <NavLink to="/kitchen" end className={({ isActive }) => `menu-item ${isActive ? "active" : ""}`}>
+            <span className="menu-icon">🍳</span> Đơn hàng (KDS)
+          </NavLink>
+          
+          {isAdmin && (
+            <>
+              <div style={{ margin: '16px 0', borderTop: '1px solid rgba(255,255,255,0.1)' }}></div>
+              <NavLink to="/admin" className="menu-item">
+                <span className="menu-icon">📊</span> Về trang Admin
+              </NavLink>
+            </>
+          )}
+        </nav>
+
+        <div className="sidebar-footer">
+          <div className="user-avatar">
+            {(username || "C").charAt(0).toUpperCase()}
+          </div>
+          <div className="user-info">
+            <span className="user-name">{username || "Bếp"}</span>
+            <span className="user-role">Đầu bếp</span>
+          </div>
+          <button onClick={handleLogout} className="btn-logout" title="Đăng xuất">
+            ⏻
+          </button>
+        </div>
       </aside>
-      <main className="container">
-        <header className="admin-header"> 
-          <div className="admin-header-right">
+
+      {/* 2. MAIN CONTENT */}
+      <main className="admin-main">
+        <header className="main-header">
+          <h2 className="header-title">Màn hình bếp</h2>
+          <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
             <KitchenNotifyBell />
-            
-            <button 
-                className="btn btn-danger" 
-                style={{marginLeft: '12px'}}
-                onClick={handleLogout}
-            >
-              Đăng xuất
-            </button>
           </div>
         </header>
-        <Outlet />
+
+        <div className="main-content-scroll">
+          <Outlet />
+        </div>
       </main>
     </div>
   );
