@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
+import toast from "react-hot-toast";
 import { login } from "../../api/auth.js";
 import { useAuth } from "../../stores/auth.js";
 import http from "../../lib/http.js";
@@ -30,6 +31,7 @@ export default function AdminLoginPage() {
     onSuccess: ({ accessToken }) => {
       setToken(accessToken);
       http.defaults.headers.common.Authorization = `Bearer ${accessToken}`;
+      toast.success("Đăng nhập thành công");
       const params = new URLSearchParams(location.search);
       const redirect = params.get("redirect");
       const { isAdmin, isKitchen } = decodeToken(accessToken);
@@ -48,7 +50,7 @@ export default function AdminLoginPage() {
     },
     onError: (err) => {
       const msg = err?.response?.data?.message || err?.message || "Đăng nhập thất bại";
-      alert(msg);
+      toast.error(msg);
     },
   });
 
