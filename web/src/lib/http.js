@@ -28,6 +28,10 @@ http.interceptors.response.use(
   },
   (err) => {
     const status = err?.response?.status;
+    if (status === 429){
+      alert("Bạn gửi quá nhiều yêu cầu. Vui lòng thử lại sau.");
+      return Promise.reject(err);
+    }
     if (status === 401 || status === 403) {
       localStorage.removeItem("token");
       const here = `${location.pathname}${location.search}`;

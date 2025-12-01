@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 import { getFeaturedProducts, getCategoriesPublic } from "../../api/public.js";
 import { addToCart, getCart } from "../../api/cart.js";
 import { toggleFavorite, getFavoriteStat } from "../../api/favorites.js";
@@ -65,6 +66,10 @@ export default function HomePage() {
       nav("/admin/login?redirect=/cart");
       return;
     }
+    if((product.stock || 0) <=0){
+      toast.error("Sản phẩm đã hết hàng");
+      return;
+    }
     try {
       await addToCart(product.id, 1);
       const cart = await getCart();
@@ -73,7 +78,7 @@ export default function HomePage() {
       setCount(totalQty);
       console.log("Đã thêm vào giỏ:", product.name);
     } catch (e) {
-      alert(e?.response?.data?.message || e?.message || "Thêm vào giỏ thất bại");
+      toast.error(e?.response?.data?.message || "Thêm vào giỏ thất bại");
     }
   }
 
@@ -214,8 +219,8 @@ export default function HomePage() {
                   </div>
 
                   <div className="card-actions">
-                    <button className="btn btn-primary btn-sm" onClick={() => onAdd(it)}>
-                      Thêm vào giỏ
+                    <button className="btn btn-primary btn-sm" onClick={() => onAdd(it)} disabled={it.stock <= 0}  style={{ opacity: it.stock <= 0 ? 0.5 : 1 }}>
+                      {it.stock <= 0 ? "Hết hàng" : "Thêm vào giỏ"}
                     </button>
                     <Link to={`/products/${it.id}`} className="btn btn-outline btn-sm">
                       Xem chi tiết

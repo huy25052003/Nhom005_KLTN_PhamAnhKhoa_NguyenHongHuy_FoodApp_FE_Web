@@ -1,5 +1,6 @@
 import React from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getProduct } from "../../api/products";
 import { addToCart, getCart } from "../../api/cart";
@@ -62,6 +63,15 @@ export default function ProductDetailPage() {
       nav("/admin/login?redirect=/cart");
       return;
     }
+
+    if (product.stock <=0){
+      toast.error("Sản phẩm đã hết hàng");
+      return;
+    }
+    if (qty > product.stock){
+      toast.error(`Số lượng trong kho không đủ. Hiện có ${product.stock} sản phẩm.`);
+      return;
+    }
     addToCartMutation.mutate();
   };
 
@@ -104,6 +114,20 @@ export default function ProductDetailPage() {
           />
         </div>
         <div className="pd-info">
+          <div className="pd-stock" style={{ color: product.stock > 0 ? 'var(--primary)' : 'red' }}>
+              {product.stock > 0 ? `Còn hàng: ${product.stock}` : "Tạm hết hàng"}
+          </div>
+
+          <div className="pd-cart">
+            <button
+                className="btn"
+                disabled={addToCartMutation.isPending || product.stock <= 0} 
+                onClick={handleAddToCart}
+                style={{ opacity: product.stock <= 0 ? 0.5 : 1 }}
+              >
+                {product.stock <= 0 ? "Hết hàng" : addToCartMutation.isPending ? "Đang thêm..." : "Thêm vào giỏ"}
+              </button>
+          </div>
           <h1 className="pd-name">{product.name}</h1>
           <div className="pd-price">{formatVND(product.price)}</div>
           {product.stock != null && <div className="pd-stock">Còn hàng: {product.stock}</div>}
