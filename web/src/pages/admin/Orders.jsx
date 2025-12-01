@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { getOrders, getOrder, updateOrderStatus } from "../../api/orders.js";
 import { Link } from 'react-router-dom';
+import toast from "react-hot-toast";
 
 const STATUS_LIST = ["PENDING","CONFIRMED","PREPARING","SHIPPING","COMPLETED","CANCELED"];
 const PAGE_SIZES = [10, 20, 50];
@@ -49,7 +50,7 @@ export default function OrdersPage() {
       const res = await getOrders(page, size);
       setData(res);
     } catch (e) {
-      alert(e?.response?.data?.message || e?.message || "Tải danh sách đơn thất bại");
+      toast.error(e?.response?.data?.message || e?.message || "Tải danh sách đơn thất bại");
     } finally {
       setLoading(false);
     }
@@ -78,12 +79,13 @@ export default function OrdersPage() {
       const full = await getOrder(order.id);
       setViewing(full);
     } catch (e) {
-      alert(e?.response?.data?.message || e?.message || "Không tải được chi tiết đơn");
+      toast.error(e?.response?.data?.message || e?.message || "Không tải được chi tiết đơn");
     }
   }
 
   async function doUpdateStatus(orderId, status) {
     setUpdating(true);
+    const tId = toast.loading("Đang cập nhật...");
     try {
       await updateOrderStatus(orderId, status);
       await load();
@@ -91,38 +93,34 @@ export default function OrdersPage() {
         const full = await getOrder(orderId);
         setViewing(full);
       }
-      alert("Cập nhật trạng thái thành công");
+      toast.success("Cập nhật trạng thái thành công", { id: tId });
     } catch (e) {
-      alert(e?.response?.data?.message || e?.message || "Cập nhật trạng thái thất bại");
+      toast.error(e?.response?.data?.message || e?.message || "Cập nhật thất bại", { id: tId });
     } finally {
       setUpdating(false);
     }
   }
 
-  const totalFiltered = filtered.length;
   const sumPageTotal = filtered.reduce((s, o) => s + calcTotal(o), 0);
 
   return (
     <div className="page-orders">
       <h1 className="h1">Quản lý Đơn hàng</h1>
 
-      <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
-        <input className="input" placeholder="Tìm (mã đơn / tên / SĐT)"
-               value={q} onChange={(e)=>{ setQ(e.target.value); }} />
-        <select className="select" value={statusFilter} onChange={(e)=> setStatusFilter(e.target.value)}>
-          <option value="">Tất cả trạng thái</option>
-          {STATUS_LIST.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <select className="select" value={size} onChange={(e)=> { setSize(Number(e.target.value)); setPage(0); }}>
-          {PAGE_SIZES.map(s => <option key={s} value={s}>{s}/trang</option>)}
-        </select>
-        <button className="btn" onClick={load}>↻ Làm mới</button>
-        <span className="muted" style={{ marginLeft:"auto" }}>
-          Trang {data.number+1}/{Math.max(1, data.totalPages)} • Hiển thị: {filtered.length}/{data.content?.length||0} • Tổng trang này: {formatVND(sumPageTotal)}
-        </span>
+      <div className="card" style={{ marginBottom: 12, padding: 12 }}>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
+          <input className="input" placeholder="Tìm (mã đơn / tên / SĐT)"
+                 value={q} onChange={(e)=>{ setQ(e.target.value); }} style={{ flex: 1, minWidth: 200 }} />
+          <select className="select" value={statusFilter} onChange={(e)=> setStatusFilter(e.target.value)}>
+            <option value="">Tất cả trạng thái</option>
+            {STATUS_LIST.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <button className="btn btn-ghost" onClick={load}>↻</button>
+        </div>
       </div>
 
-      <div className="card" style={{ overflow:"hidden", marginTop:12 }}>
+      {/* --- DESKTOP TABLE VIEW --- */}
+      <div className="card desktop-only" style={{ overflow:"hidden", padding: 0 }}>
         <table className="table">
           <thead>
             <tr>
@@ -141,37 +139,19 @@ export default function OrdersPage() {
             ) : filtered.length ? filtered.map(o => (
               <tr key={o.id}>
                 <td>#{o.id}</td>
-                <td>{o.user?.username || o.customerName || o.username || "-"}</td>
+                <td>{o.user?.username || o.customerName || "-"}</td>
                 <td>{o.user?.phone || o.phone || "-"}</td>
-                <td>{formatDate(o.createdAt || o.createdDate || o.createdTime)}</td>
+                <td>{formatDate(o.createdAt)}</td>
                 <td>{formatVND(calcTotal(o))}</td>
-                <td>
-                  <span className="badge">{(o.status || "PENDING").toUpperCase()}</span>
-                </td>
+                <td><span className={`badge ${o.status}`}>{o.status}</span></td>
                 <td style={{ whiteSpace:"nowrap" }}>
-                  <button className="btn" onClick={()=> openDetail(o)} style={{ marginRight:8 }}>Xem</button>
-                  {nextStatuses(o.status).length > 0 && (
-                    <div style={{ display:"inline-flex", gap:6 }}>
-                      {nextStatuses(o.status).map(ns => (
-                        <button key={ns} className="btn btn-primary"
-                                disabled={updating}
-                                onClick={()=> doUpdateStatus(o.id, ns)}>
-                          {ns}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </td>
-                <td style={{ whiteSpace: "nowrap" }}>
-                  {/* ...các nút khác... */}
-                  <Link
-                    className="btn"
-                    to={`/admin/orders/${o.id}/invoice`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    In hoá đơn
-                  </Link>
+                  <button className="btn btn-sm btn-ghost" onClick={()=> openDetail(o)}>Xem</button>
+                  {nextStatuses(o.status).map(ns => (
+                    <button key={ns} className="btn btn-sm btn-primary" style={{marginLeft: 4}}
+                            disabled={updating} onClick={()=> doUpdateStatus(o.id, ns)}>
+                      {ns === 'CONFIRMED' ? 'Duyệt' : ns}
+                    </button>
+                  ))}
                 </td>
               </tr>
             )) : (
@@ -181,66 +161,91 @@ export default function OrdersPage() {
         </table>
       </div>
 
-      <div className="pagination" style={{ marginTop:8 }}>
+      {/* --- MOBILE CARD VIEW --- */}
+      <div className="mobile-only vstack gap-3">
+        {loading ? <div className="muted text-center">Đang tải...</div> : 
+         filtered.length === 0 ? <div className="muted text-center">Không có đơn hàng nào</div> :
+         filtered.map(o => (
+          <div key={o.id} className="order-card-mobile">
+            <div className="row">
+              <span className="label">Mã đơn:</span>
+              <span className="val">#{o.id}</span>
+            </div>
+            <div className="row">
+              <span className="label">Ngày đặt:</span>
+              <span className="val">{formatDate(o.createdAt)}</span>
+            </div>
+            <div className="row">
+              <span className="label">Khách hàng:</span>
+              <span className="val">{o.user?.username || "Khách"}</span>
+            </div>
+            <div className="row">
+              <span className="label">Tổng tiền:</span>
+              <span className="val" style={{color: 'var(--primary)'}}>{formatVND(calcTotal(o))}</span>
+            </div>
+            <div className="row">
+              <span className="label">Trạng thái:</span>
+              <span className={`badge ${o.status}`}>{o.status}</span>
+            </div>
+            <div className="actions">
+              <button className="btn btn-sm btn-ghost" onClick={()=> openDetail(o)}>Chi tiết</button>
+              {nextStatuses(o.status).map(ns => (
+                <button key={ns} className="btn btn-sm btn-primary"
+                        disabled={updating} onClick={()=> doUpdateStatus(o.id, ns)}>
+                  {ns === 'CONFIRMED' ? 'Duyệt đơn' : ns}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="pagination" style={{ marginTop:16, justifyContent: 'center' }}>
         <button className="btn" disabled={page<=0} onClick={()=> setPage(p=>p-1)}>← Trước</button>
         <span>Trang {page+1}/{Math.max(1, data.totalPages)}</span>
         <button className="btn" disabled={page>=Math.max(1, data.totalPages)-1} onClick={()=> setPage(p=>p+1)}>Sau →</button>
-        <span className="muted" style={{ marginLeft:"auto" }}>Tổng đơn: {data.totalElements ?? "-"}</span>
       </div>
 
       {viewing && (
         <div className="modal-backdrop" onClick={(e)=>{ if(e.target===e.currentTarget) setViewing(null); }}>
           <div className="modal">
-            <div className="card-title">Đơn #{viewing.id}</div>
-            <div className="muted" style={{ marginBottom:8 }}>
-              Khách: {viewing.user?.username || viewing.customerName || "-"} • SĐT: {viewing.user?.phone || viewing.phone || "-"} •
-              Thời gian: {formatDate(viewing.createdAt || viewing.createdDate || viewing.createdTime)}
+            <div className="card-title">Chi tiết đơn #{viewing.id}</div>
+            
+            <div className="vstack gap-2" style={{marginBottom: 16, fontSize: '0.9rem'}}>
+               <div className="flex-row space-between">
+                 <span className="muted">Người đặt:</span>
+                 <b>{viewing.user?.username}</b>
+               </div>
+               <div className="flex-row space-between">
+                 <span className="muted">SĐT:</span>
+                 <b>{viewing.shipping?.phone || viewing.user?.phone}</b>
+               </div>
+               <div className="flex-row space-between">
+                 <span className="muted">Địa chỉ:</span>
+                 <b style={{textAlign:'right', maxWidth: '60%'}}>{viewing.shipping?.addressLine}</b>
+               </div>
             </div>
 
-            <div className="card" style={{ overflow:"hidden" }}>
+            <div style={{ flex: 1, overflowY: 'auto' }}>
               <table className="table">
                 <thead>
-                  <tr><th>Sản phẩm</th><th>SL</th><th>Đơn giá</th><th>Thành tiền</th></tr>
+                  <tr><th>Món</th><th className="text-center">SL</th><th className="text-right">Tiền</th></tr>
                 </thead>
                 <tbody>
-                  {(viewing.items || viewing.orderItems || []).map((it, idx) => {
-                    const name = it.product?.name || it.name || `#${idx+1}`;
-                    const qty  = it.quantity ?? it.qty ?? it.amount ?? 1;
-                    const price = it.price ?? it.product?.price ?? 0;
-                    return (
-                      <tr key={idx}>
-                        <td>{name}</td>
-                        <td>{qty}</td>
-                        <td>{formatVND(price)}</td>
-                        <td>{formatVND(price * qty)}</td>
-                      </tr>
-                    );
-                  })}
+                  {(viewing.items || []).map((it, idx) => (
+                    <tr key={idx}>
+                      <td>{it.product?.name}</td>
+                      <td className="text-center">{it.quantity}</td>
+                      <td className="text-right">{formatVND(it.price * it.quantity)}</td>
+                    </tr>
+                  ))}
                 </tbody>
-                <tfoot>
-                  <tr>
-                    <td colSpan={3} style={{ textAlign:"right" }}><b>Tổng:</b></td>
-                    <td><b>{formatVND(calcTotal(viewing))}</b></td>
-                  </tr>
-                </tfoot>
               </table>
             </div>
 
-            <div style={{ display:"flex", gap:8, marginTop:12 }}>
-              <span>Trạng thái hiện tại:</span>
-              <span className="badge">{(viewing.status || "PENDING").toUpperCase()}</span>
-              <div style={{ marginLeft:"auto" }}>
-                {nextStatuses(viewing.status).map(ns => (
-                  <button key={ns} className="btn btn-primary" disabled={updating}
-                          onClick={()=> doUpdateStatus(viewing.id, ns)} style={{ marginLeft:6 }}>
-                    Chuyển → {ns}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="modal-actions">
-              <button className="btn" onClick={()=> setViewing(null)}>Đóng</button>
+            <div className="modal-actions" style={{borderTop: '1px solid #eee', paddingTop: 12}}>
+              <Link className="btn btn-sm btn-ghost" to={`/admin/orders/${viewing.id}/invoice`} target="_blank">In Hoá Đơn</Link>
+              <button className="btn btn-primary" onClick={()=> setViewing(null)}>Đóng</button>
             </div>
           </div>
         </div>

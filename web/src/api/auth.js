@@ -6,68 +6,35 @@ const REGISTER_PATH = "auth/register";
 export async function login(username, password) {
   try {
     const res = await http.post(LOGIN_PATH, { username, password });
-    let token =
-      res.data?.accessToken || res.data?.token || res.data?.access_token || res.data?.jwt ||
-      (() => {
-        const h = res.headers?.authorization || res.headers?.Authorization;
-        return h && /^Bearer\s+/i.test(h) ? h.replace(/^Bearer\s+/i, "") : null;
-      })();
-    if (!token) throw new Error("Không thấy access token.");
-    return { accessToken: token };
+    return handleTokenResponse(res);
   } catch (e) {
-    if (e?.response?.status === 415 || e?.response?.status === 400) {
-      const form = new URLSearchParams();
-      form.append("username", username);
-      form.append("password", password);
-      const res2 = await http.post(LOGIN_PATH, form, {
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      });
-      let token =
-        res2.data?.accessToken || res2.data?.token || res2.data?.access_token || res2.data?.jwt ||
-        (() => {
-          const h = res2.headers?.authorization || res2.headers?.Authorization;
-          return h && /^Bearer\s+/i.test(h) ? h.replace(/^Bearer\s+/i, "") : null;
-        })();
-      if (!token) throw new Error("Không thấy access token.");
-      return { accessToken: token };
-    }
     throw e;
   }
 }
-  export async function register(username, password) {
+
+export async function register(username, password) {
   try {
-
     const res = await http.post(REGISTER_PATH, { username, password });
-
-    const token =
-      res.data?.accessToken || res.data?.token || res.data?.access_token || res.data?.jwt ||
-      (() => {
-        const h = res.headers?.authorization || res.headers?.Authorization;
-        return h && /^Bearer\s+/i.test(h) ? h.replace(/^Bearer\s+/i, "") : null;
-      })();
-
-    return { ok: true, accessToken: token || null };
+    return { ok: true, ...handleTokenResponse(res) };
   } catch (e) {
-    if (e?.response?.status === 415 || e?.response?.status === 400) {
-      const form = new URLSearchParams();
-      form.append("username", username);
-      form.append("password", password);
-      const res2 = await http.post(REGISTER_PATH, form, {
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      });
-      const token =
-        res2.data?.accessToken || res2.data?.token || res2.data?.access_token || res2.data?.jwt ||
-        (() => {
-          const h = res2.headers?.authorization || res2.headers?.Authorization;
-          return h && /^Bearer\s+/i.test(h) ? h.replace(/^Bearer\s+/i, "") : null;
-        })();
-      return { ok: true, accessToken: token || null };
-    }
-
-    if (e?.response?.status === 409) {
-      throw new Error("Tên đăng nhập đã tồn tại");
-    }
-    const msg = e?.response?.data?.message || e?.message || "Đăng ký thất bại";
-    throw new Error(msg);
+    throw new Error(e?.response?.data?.message || e?.message || "Đăng ký thất bại");
   }
+}
+
+export async function loginWithFirebase(firebaseToken) {
+  const res = await http.post("auth/firebase", { token: firebaseToken });
+  return handleTokenResponse(res);
+}
+
+// Helper xử lý token trả về (vì backend có thể trả về nhiều format khác nhau)
+function handleTokenResponse(res) {
+  const token =
+    res.data?.accessToken || res.data?.token || res.data?.access_token || res.data?.jwt ||
+    (() => {
+      const h = res.headers?.authorization || res.headers?.Authorization;
+      return h && /^Bearer\s+/i.test(h) ? h.replace(/^Bearer\s+/i, "") : null;
+    })();
+
+  if (!token) return { accessToken: null };
+  return { accessToken: token };
 }

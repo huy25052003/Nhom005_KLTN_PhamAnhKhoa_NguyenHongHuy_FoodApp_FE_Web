@@ -133,7 +133,7 @@ export default function ProductDetailPage() {
 
           {product.description && <p className="pd-desc">{product.description}</p>}
           
-          <div className="pd-cart" style={{marginTop: 20}}>
+          <div className="pd-cart">
             <div className="qty-box">
               <button type="button" onClick={() => setQty((q) => Math.max(1, q - 1))}>−</button>
               <input className="qty-input" type="number" min="1" value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))} />

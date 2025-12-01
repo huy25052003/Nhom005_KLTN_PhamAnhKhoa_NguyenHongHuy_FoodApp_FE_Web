@@ -1,5 +1,5 @@
 /* =========================================
-   1. VARIABLES & RESET (GỐC + BỔ SUNG)
+   1. VARIABLES & RESET
 ========================================= */
 :root {
   /* Màu sắc gốc */
@@ -15,7 +15,7 @@
   --radius: 16px;
   --shadow: 0 1px 2px rgba(0,0,0,.05);
 
-  /* Bổ sung cho Admin Layout */
+  /* Bổ sung cho Admin Layout & Validation */
   --primary-dark: #16a34a;
   --primary-light: #dcfce7;
   --secondary: #263238; /* Màu sidebar tối */
@@ -34,11 +34,11 @@ body {
   background: var(--bg);
   color: var(--text);
   scroll-behavior: smooth;
-  line-height: 1.5; /* Bổ sung line-height */
+  line-height: 1.5;
 }
 
 /* =========================================
-   2. UTILITIES & COMPONENTS GỐC (GIỮ NGUYÊN)
+   2. UTILITIES & COMPONENTS
 ========================================= */
 /* Layout & Container */
 .layout { min-height:100vh; display:grid; grid-template-columns: 220px 1fr; background:var(--bg); }
@@ -59,7 +59,7 @@ body {
 .logo span { color:var(--primary) }
 .logo--footer { font-size:20px; margin-bottom:8px }
 .nav { display:flex; gap:16px; margin-left:auto }
-.header-cta { display:flex; gap:8px; margin-left:8px }
+.header-cta { display:flex; gap:8px; margin-left:8px; align-items: center; }
 .header-cta .avatar-btn { width: 36px; height: 36px; border-radius: 999px; display: inline-grid; place-items: center; border: 1px solid #e5e7eb; background: #fff; }
 .nav-link .pill { display: inline-block; min-width: 20px; height: 20px; line-height: 20px; padding: 0 6px; border-radius: 999px; font-size: .7rem; font-weight: 700; background: #111827; color: #fff; margin-left: 6px; text-align: center; }
 
@@ -83,7 +83,6 @@ body {
 .btn:active { transform: scale(0.96); }
 .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
-/* Nút chính (Thêm giỏ hàng) */
 .btn-primary {
   background: var(--primary);
   color: #fff;
@@ -94,7 +93,6 @@ body {
   box-shadow: 0 10px 15px -3px rgba(34, 197, 94, 0.3), 0 4px 6px -2px rgba(34, 197, 94, 0.1);
 }
 
-/* Nút phụ (Chi tiết) */
 .btn-outline {
   background: transparent;
   border-color: var(--border);
@@ -106,7 +104,6 @@ body {
   color: var(--primary);
 }
 
-/* Nút nhỏ hơn cho mobile hoặc chỗ hẹp */
 .btn-sm {
   padding: 8px 16px;
   font-size: 0.875rem;
@@ -114,15 +111,14 @@ body {
 }
 .w-full { width:100% }
 
-/* Tables (Cập nhật nhẹ để đẹp hơn trong Admin) */
+/* Tables */
 .table-responsive { overflow-x: auto; background: var(--surface); border-radius: var(--border-radius); box-shadow: var(--shadow-sm); border: 1px solid var(--border); }
-.table { width:100%; border-collapse:collapse; white-space: nowrap; /* Thêm nowrap */ }
+.table { width:100%; border-collapse:collapse; white-space: nowrap; }
 .table thead { background:#f1f5f9; }
 .table th { padding:16px 24px; text-align:left; font-size:0.75rem; color:var(--muted); text-transform: uppercase; font-weight: 700; letter-spacing: 1px; border-bottom: 1px solid var(--border); }
 .table td { padding:16px 24px; vertical-align:middle; border-bottom:1px solid var(--border); }
 .table tbody tr:hover { background-color: #f9fafb; }
 .table td img.product-img { width: 48px; height: 48px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); display: block; }
-
 
 /* Pagination & Muted */
 .pagination { display:flex; align-items:center; gap:8px; }
@@ -202,6 +198,7 @@ body {
 /* Footer & Misc */
 .site-footer { background:#0b1a13; color:#d1fae5; padding:32px 0; margin-top:48px }
 .site-footer a { color:#a7f3d0; text-decoration:none }
+.site-footer a:hover { text-decoration: underline; }
 .link-col { list-style:none; padding:0; margin:8px 0 0 0 }
 .link-col li { margin:6px 0 }
 .logo-box { opacity: 0.7; transition: opacity 0.3s ease; filter: grayscale(80%); }
@@ -282,7 +279,7 @@ body {
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 .fade-in { animation: fadeIn 0.6s ease-out forwards; opacity: 0; }
 
-/* Tailwind-like Utilities (Giữ nguyên) */
+/* Tailwind-like Utilities */
 .col-span-2 { grid-column: span 2 / span 2; }
 .mt-3 { margin-top: 1rem; }
 .min-h-screen { min-height: 100vh; }
@@ -318,12 +315,12 @@ body {
 .menu-products .search-bar .input { padding: 0.75rem 1rem; border-radius: 12px; }
 
 /* =========================================
-   3. ADMIN LAYOUT STYLES (BỔ SUNG MỚI)
+   3. ADMIN LAYOUT STYLES
 ========================================= */
 .admin-layout {
   display: flex;
-  height: 100vh; /* Full màn hình */
-  overflow: hidden; /* Không cho body cuộn */
+  height: 100vh;
+  overflow: hidden;
 }
 
 /* Sidebar */
@@ -403,14 +400,7 @@ body {
   background-color: var(--bg);
 }
 
-.site-footer a {
-  text-decoration: none; 
-}
-
-.site-footer a:hover {
-  text-decoration: underline;
-}
-
+/* KDS Styles */
 .kds-header-card {
   background: var(--surface);
   padding: 16px;
@@ -509,9 +499,9 @@ body {
 }
 
 /* Border top màu theo trạng thái */
-.ticket-card { border-top: 5px solid #94a3b8; } /* Mặc định */
-.ticket-card.PREPARING { border-top-color: #f59e0b; } /* Cam: Đang nấu */
-.ticket-card.CONFIRMED { border-top-color: #3b82f6; } /* Xanh dương: Mới nhận */
+.ticket-card { border-top: 5px solid #94a3b8; }
+.ticket-card.PREPARING { border-top-color: #f59e0b; }
+.ticket-card.CONFIRMED { border-top-color: #3b82f6; }
 
 .ticket-header {
   padding: 12px 16px;
@@ -563,11 +553,11 @@ body {
 }
 
 .ticket-item.highlight {
-  background: #dcfce7; /* Highlight khi chọn filter */
+  background: #dcfce7;
 }
 
 .ticket-item.COOKING {
-  background: #fff7ed; /* Màu nền nhẹ khi đang nấu */
+  background: #fff7ed;
 }
 
 .item-info {
@@ -633,21 +623,15 @@ body {
   gap: 4px;
 }
 
-
-.input-error {
-  border: 1px solid #ef4444 !important; 
-  background-color: #fff1f2; 
-}
-
-.error-text {
-  color: #ef4444;
-  font-size: 0.85rem;
-  margin-top: 4px;
-  display: block;
-}
 /* =========================================
-   4. RESPONSIVE MEDIA QUERIES (TỔNG HỢP)
+   4. RESPONSIVE & MOBILE
 ========================================= */
+.mobile-only { display: none !important; }
+.desktop-only { display: block !important; }
+
+/* Mobile Menu Button - Default Hidden */
+.mobile-menu-btn { display: none; }
+
 @media (max-width: 1024px) {
   .grid4 { grid-template-columns:repeat(2,1fr) }
   .grid6 { grid-template-columns:repeat(3,1fr) }
@@ -683,6 +667,46 @@ body {
   .product-grid { grid-template-columns: repeat(3, 1fr); }
 }
 
+@media (max-width: 768px) {
+  /* Utilities */
+  .mobile-only { display: block !important; }
+  .desktop-only { display: none !important; }
+  .table th, .table td { padding: 12px 8px; font-size: 0.85rem; }
+  .grid2, .grid3, .grid6 { grid-template-columns: 1fr !important; }
+  .modal { width: 100%; height: 100%; border-radius: 0; display: flex; flex-direction: column; }
+  .modal .card-title { margin-top: 12px; }
+  .modal form { flex: 1; overflow-y: auto; }
+
+  /* Header & Nav */
+  .site-header .header-inner { justify-content: space-between; position: relative; }
+  .mobile-menu-btn { display: block !important; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text); padding: 8px; }
+  .site-header .nav { display: none; position: absolute; top: 100%; left: 0; right: 0; background: #fff; flex-direction: column; padding: 16px; border-bottom: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,0.1); gap: 8px; z-index: 100; }
+  .site-header .nav.is-open { display: flex; animation: slideDown 0.3s ease-out; }
+  .header-cta { margin-left: auto; margin-right: 8px; }
+  .header-cta .btn { padding: 6px 12px; font-size: 0.8rem; }
+
+  /* Grid & Products */
+  .grid4, .product-grid { grid-template-columns: 1fr 1fr !important; gap: 12px !important; }
+  .product-card .product-thumb-wrapper img { height: 120px !important; }
+  .product-card .product-name { font-size: 0.9rem; height: 2.4em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .product-card .card-actions .btn { font-size: 0.8rem; padding: 6px 10px; }
+
+  /* Menu Page Horizontal Scroll */
+  .menu-layout { display: block; }
+  .menu-sidebar { position: sticky; top: 64px; z-index: 20; background: #fff; border-radius: 0; border: none; border-bottom: 1px solid var(--border); padding: 10px 0; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+  .menu-sidebar .sidebar-title { display: none; }
+  .menu-sidebar ul { display: flex; overflow-x: auto; gap: 8px; padding: 0 16px; scrollbar-width: none; }
+  .menu-sidebar ul::-webkit-scrollbar { display: none; }
+  .menu-sidebar .category-item { white-space: nowrap; padding: 6px 16px; border-radius: 20px; background: #f1f5f9; border: 1px solid transparent; font-size: 0.9rem; margin-bottom: 0; }
+  .menu-sidebar .category-item.active { background: var(--primary); color: #fff; font-weight: 600; box-shadow: 0 2px 6px rgba(34, 197, 94, 0.4); }
+
+  /* Product Detail Sticky Bottom */
+  .product-detail .pd-head { grid-template-columns: 1fr; }
+  .product-detail .pd-info { padding-bottom: 80px; }
+  .product-detail .pd-cart { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; padding: 12px 16px; border-top: 1px solid var(--border); box-shadow: 0 -4px 10px rgba(0,0,0,0.05); z-index: 30; justify-content: space-between; margin-top: 0; }
+  .product-detail .pd-cart .btn { flex: 1; margin-left: 12px; }
+}
+
 @media (max-width: 640px) {
   .grid4,.grid3,.grid6,.logo-row { grid-template-columns:1fr }
   .form-grid { grid-template-columns: 1fr; }
@@ -700,6 +724,8 @@ body {
   .menu-sidebar .category-item { flex-grow: 1; text-align: center; padding: 0.5rem; margin-bottom: 0; border: 1px solid var(--border); }
 }
 
+@keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
 @media print {
   html, body { background:#fff; }
   body * { visibility: hidden !important; }
@@ -708,3 +734,85 @@ body {
   .no-print { display: none !important; }
 }
 @page { margin: 12mm; }
+
+/* =========================================
+   5. NEW STYLES (Added for Order Mobile Card & Validation)
+========================================= */
+
+/* Style cho Order Card trên Mobile */
+.order-card-mobile {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.order-card-mobile .row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.9rem; }
+.order-card-mobile .label { color: var(--muted); font-weight: 500; }
+.order-card-mobile .val { font-weight: 600; text-align: right; }
+.order-card-mobile .actions { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); display: flex; gap: 8px; justify-content: flex-end; }
+
+/* Class hiển thị lỗi cho input */
+.input-error {
+  border: 1px solid #ef4444 !important; /* Màu đỏ bắt buộc */
+  background-color: #fff1f2; /* Nền đỏ nhạt nhẹ */
+}
+
+/* Class cho dòng chữ thông báo lỗi */
+.error-text {
+  color: #ef4444;
+  font-size: 0.85rem;
+  margin-top: 4px;
+  display: block;
+}
+
+/* --- HEADER ICONS STYLING --- */
+
+/* Nút icon chung (Giỏ hàng, User, Logout) */
+.header-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%; /* Tròn vo */
+  color: #4b5563; /* Màu xám đậm cho tinh tế */
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 1.2rem; /* Kích thước icon */
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+/* Hiệu ứng khi rê chuột */
+.header-icon-btn:hover {
+  background-color: #f3f4f6; /* Nền xám nhạt */
+  color: var(--primary); /* Đổi sang màu xanh chủ đạo */
+  transform: translateY(-2px); /* Nhảy nhẹ lên 1 xíu */
+}
+
+/* Riêng nút Logout cho màu đỏ khi hover */
+.header-icon-btn.logout:hover {
+  color: #ef4444;
+  background-color: #fef2f2;
+}
+
+/* Badge số lượng trên giỏ hàng */
+.cart-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  background: #ef4444; /* Màu đỏ nổi bật */
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  height: 18px;
+  min-width: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  border: 2px solid #fff; /* Viền trắng để tách biệt với icon */
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}

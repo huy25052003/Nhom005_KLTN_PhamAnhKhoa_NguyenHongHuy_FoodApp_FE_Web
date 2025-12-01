@@ -3,14 +3,20 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../stores/auth.js";
 import { getMyCart } from "../api/cart.js";
 import { useCart } from "../stores/cart.js";
+import { FaBars, FaTimes, FaSignOutAlt, FaShoppingCart, FaUser, FaUserCog } from "react-icons/fa";
 
 export default function SiteHeader() {
   const { token, logout, isAdmin } = useAuth();
   const { count, setCount } = useCart();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const location = useLocation();
   const pathname = location.pathname;
   const nav = useNavigate();
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     let alive = true;
@@ -29,45 +35,95 @@ export default function SiteHeader() {
     return () => { alive = false; };
   }, [token, pathname, setCount]);
 
+  const handleLogout = () => {
+    logout();
+    nav("/admin/login");
+  };
+
   return (
     <header className="site-header">
       <div className="container header-inner">
-        <div className="logo">Food<span>App</span></div>
-        <nav className="nav">
+        {/* Mobile Menu Button */}
+        <button 
+          className="mobile-menu-btn" 
+          onClick={() => setMenuOpen(!menuOpen)}
+          aria-label="Menu"
+        >
+          {menuOpen ? <FaTimes /> : <FaBars />}
+        </button>
+
+        <div className="logo" onClick={() => nav("/")} style={{cursor: 'pointer'}}>
+          Food<span>App</span>
+        </div>
+
+        {/* Navigation Menu */}
+        <nav className={`nav ${menuOpen ? "is-open" : ""}`}>
           <Link className={`nav-link ${pathname === "/" ? "active" : ""}`} to="/">Trang chủ</Link>
-          <Link className={`nav-link ${pathname === "/checkout" ? "active" : ""}`} to="/checkout">
-            Giỏ hàng {count > 0 && <span className="badge">{count}</span>}
-          </Link>
           <Link className={`nav-link ${pathname === "/menu" ? "active" : ""}`} to="/menu">Thực đơn</Link>
           <Link className={`nav-link ${pathname === "/favorites" ? "active" : ""}`} to="/favorites">Yêu thích</Link>
+          
+          {/* Mobile Only Links */}
+          <div className="mobile-only" style={{borderTop: '1px solid #eee', paddingTop: 8, marginTop: 8}}>
+             {token ? (
+               <>
+                 <Link className="nav-link" to="/account">Tài khoản</Link>
+                 <Link className="nav-link" to="/account/orders">Đơn mua</Link>
+                 {isAdmin && <Link className="nav-link" to="/admin">Trang quản trị</Link>}
+                 <button className="nav-link text-red" onClick={handleLogout} style={{width:'100%', textAlign:'left', background:'none', border:'none', fontSize:'1rem'}}>
+                    Đăng xuất
+                 </button>
+               </>
+             ) : (
+               <Link className="nav-link" to="/admin/login">Đăng nhập</Link>
+             )}
+          </div>
         </nav>
+
+        {/* Right Actions (Icon đẹp hơn ở đây) */}
         <div className="header-cta">
-          {!token ? (
-            <>
-              <Link className="btn btn-ghost" to="/admin/login">Đăng nhập</Link>
-              <Link className="btn" to="/register">Đăng ký</Link>
-            </>
-          ) : (
-            <>
-              {isAdmin ? (
-                <button className="btn" onClick={() => nav("/admin")}>Admin</button>
-              ) : (
+          
+          {/* 1. Icon Giỏ hàng */}
+          <Link to="/checkout" className="header-icon-btn" title="Giỏ hàng">
+            <FaShoppingCart />
+            {count > 0 && <span className="cart-badge">{count > 99 ? '99+' : count}</span>}
+          </Link>
+
+          {/* Desktop Only: User Actions */}
+          <div className="desktop-only" style={{display:'inline-flex', gap: 4, alignItems:'center'}}>
+            {!token ? (
+                <Link className="btn btn-primary btn-sm" to="/admin/login" style={{marginLeft: 8}}>
+                  Đăng nhập
+                </Link>
+            ) : (
                 <>
-                  <button className="btn btn-ghost" onClick={() => nav("/account/shipping")}>Giao hàng</button>
-                  <button className="btn btn-ghost" onClick={() => nav("/account/orders")}>Đơn hàng</button>
-                  <button className="icon-btn" title="Tài khoản" onClick={() => nav("/account")}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                      <circle cx="12" cy="7" r="4"/>
-                    </svg>
+                  {/* 2. Icon User/Admin */}
+                  {isAdmin ? (
+                      <button className="header-icon-btn" onClick={() => nav("/admin")} title="Trang quản trị">
+                          <FaUserCog />
+                      </button>
+                  ) : (
+                      <button className="header-icon-btn" onClick={() => nav("/account")} title="Tài khoản của tôi">
+                          <FaUser />
+                      </button>
+                  )}
+
+                  {/* 3. Icon Logout */}
+                  <button className="header-icon-btn logout" onClick={handleLogout} title="Đăng xuất">
+                      <FaSignOutAlt />
                   </button>
                 </>
-              )}
-              <button className="btn" onClick={logout}>Đăng xuất</button>
-            </>
-          )}
+            )}
+          </div>
         </div>
       </div>
+      
+      {/* Overlay */}
+      {menuOpen && (
+        <div 
+            style={{position: 'fixed', inset: 0, top: 64, background: 'rgba(0,0,0,0.5)', zIndex: 29}}
+            onClick={() => setMenuOpen(false)}
+        ></div>
+      )}
     </header>
   );
 }
