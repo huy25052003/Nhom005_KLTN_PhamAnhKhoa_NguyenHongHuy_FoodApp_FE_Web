@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import toast from "react-hot-toast"; // 1. Import Toast
 import { getCart, updateCartItem, removeCartItem, clearCart } from "../../api/cart.js";
 import { placeOrder } from "../../api/orders.js";
 import { createPaymentLink } from "../../api/payment.js";
@@ -7,7 +8,6 @@ import { getMyShipping } from "../../api/shipping.js";
 import { previewPromotion } from "../../api/promotions.js"; 
 import { useAuth } from "../../stores/auth.js";
 import { useCart } from "../../stores/cart.js";
-import toast from "react-hot-toast";
 
 const fmt = (n) => (Number(n || 0)).toLocaleString("vi-VN") + " đ";
 
@@ -21,7 +21,7 @@ export default function CheckoutPage() {
   const [method, setMethod] = useState("COD");
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
-  const [cartActionLoading, setCartActionLoading] = useState(false);
+  const [cartActionLoading, setCartActionLoading] = useState(false); // Tránh spam click
 
   const [shipping, setShipping] = useState(null);
   
@@ -30,13 +30,11 @@ export default function CheckoutPage() {
   const [discount, setDiscount] = useState(0);
   const [appliedCode, setAppliedCode] = useState(null);
   const [promoMsg, setPromoMsg] = useState(""); 
-  const [promoStatus, setPromoStatus] = useState(""); 
+  const [promoStatus, setPromoStatus] = useState(""); // 'success' | 'error'
   const [checkingCode, setCheckingCode] = useState(false);
 
   const isShippingValid = !!(shipping && shipping.phone && shipping.addressLine);
 
-  // Load Cart & Shipping Info
-  // Thêm tham số isBackground để tránh hiện loading quay vòng khi update nhỏ
   async function loadData(isBackground = false) {
     if (!isBackground) setLoading(true);
     try {
@@ -56,8 +54,7 @@ export default function CheckoutPage() {
       setCount(totalQty);
 
     } catch (e) {
-      console.error("Failed to load data", e);
-      toast.error("Không thể tải dữ liệu giỏ hàng.");
+      if(!isBackground) toast.error("Không thể tải dữ liệu giỏ hàng.");
     } finally {
       if (!isBackground) setLoading(false);
     }
@@ -87,7 +84,7 @@ export default function CheckoutPage() {
     const stock = item?.product?.stock || 0;
     const next = Math.max(1, currentQty + delta);
 
-    // 1. CHECK TỒN KHO KHI TĂNG
+    // Check tồn kho phía Client cho nhanh (Backend cũng sẽ check lại)
     if (delta > 0 && next > stock) {
         toast.error(`Sản phẩm này chỉ còn ${stock} món.`);
         return;
@@ -96,16 +93,15 @@ export default function CheckoutPage() {
     setCartActionLoading(true);
     try {
       await updateCartItem(item.id, next);
-      
-      // 2. FIX GIẬT MÀN HÌNH: Gọi loadData với isBackground=true
-      await loadData(true); 
+      await loadData(true); // Load ngầm để không giật màn hình
 
+      // Nếu giỏ hàng thay đổi, phải reset mã giảm giá để tính lại
       if (appliedCode) {
          setAppliedCode(null);
          setDiscount(0);
          setPromoMsg("Giỏ hàng thay đổi, vui lòng áp lại mã.");
          setPromoStatus("error");
-         toast("Vui lòng áp dụng lại mã giảm giá", { icon: "ℹ️" });
+         toast("Vui lòng kiểm tra lại mã giảm giá", { icon: "ℹ️" });
       }
     } catch (e) {
       toast.error(e?.response?.data?.message || "Lỗi cập nhật số lượng");
@@ -116,37 +112,22 @@ export default function CheckoutPage() {
 
   async function onRemove(item) {
     if (cartActionLoading) return;
+    if (!confirm("Xoá sản phẩm này khỏi đơn hàng?")) return;
+
     setCartActionLoading(true);
     try {
       await removeCartItem(item.id);
-      await loadData(true); // Fix giật: load ngầm
+      toast.success("Đã xóa sản phẩm");
+      await loadData(true);
+      
       if (appliedCode) {
          setAppliedCode(null);
          setDiscount(0);
-         setPromoMsg("Giỏ hàng thay đổi, vui lòng áp lại mã.");
-         setPromoStatus("error");
+         setPromoStatus("");
+         setPromoMsg("");
       }
-      toast.success("Đã xóa sản phẩm");
     } catch (e) {
        toast.error("Xóa sản phẩm thất bại");
-    } finally {
-       setCartActionLoading(false);
-    }
-  }
-
-  async function onClear() {
-    if (cartActionLoading || !confirm("Xoá toàn bộ giỏ hàng?")) return;
-    setCartActionLoading(true);
-    try {
-      await clearCart();
-      await loadData(true); // Fix giật: load ngầm
-      setDiscount(0);
-      setAppliedCode(null);
-      setPromoCode("");
-      setPromoMsg("");
-      toast.success("Đã xóa giỏ hàng");
-    } catch (e) {
-       toast.error("Xóa giỏ hàng thất bại");
     } finally {
        setCartActionLoading(false);
     }
@@ -156,8 +137,7 @@ export default function CheckoutPage() {
 
   async function handleApplyCoupon() {
     if (!promoCode.trim()) {
-        setPromoMsg("Vui lòng nhập mã.");
-        setPromoStatus("error");
+        toast.error("Vui lòng nhập mã giảm giá");
         return;
     }
     setCheckingCode(true);
@@ -165,6 +145,7 @@ export default function CheckoutPage() {
     setPromoStatus("");
 
     try {
+      // Chuẩn bị payload giống Backend yêu cầu
       const payloadItems = items.map(it => ({
         productId: it.product?.id || it.productId,
         quantity: it.quantity
@@ -177,7 +158,7 @@ export default function CheckoutPage() {
         setAppliedCode(res.code || promoCode);
         setPromoMsg(`Áp dụng thành công: Giảm ${fmt(res.discount)}`);
         setPromoStatus("success");
-        toast.success("Áp dụng mã giảm giá thành công!");
+        toast.success(`Đã áp dụng mã: Giảm ${fmt(res.discount)}`);
       } else {
         setDiscount(0);
         setAppliedCode(null);
@@ -191,6 +172,7 @@ export default function CheckoutPage() {
       const errorMsg = e?.response?.data?.message || "Lỗi kiểm tra mã";
       setPromoMsg(errorMsg);
       setPromoStatus("error");
+      toast.error(errorMsg);
     } finally {
       setCheckingCode(false);
     }
@@ -205,11 +187,13 @@ export default function CheckoutPage() {
     }
     if (!isShippingValid) {
       toast.error("Vui lòng nhập địa chỉ giao hàng.");
+      // Scroll tới phần địa chỉ
       document.querySelector('.card-shipping')?.scrollIntoView({ behavior: 'smooth' });
       return;
     }
 
     setPlacing(true);
+    // Hiển thị loading toast
     const loadingToast = toast.loading("Đang xử lý đơn hàng...");
 
     try {
@@ -234,18 +218,22 @@ export default function CheckoutPage() {
 
       const order = await placeOrder(requestPayload);
       
-      toast.dismiss(loadingToast); 
+      toast.dismiss(loadingToast); // Tắt loading
 
       if (!order?.id) throw new Error("Lỗi tạo đơn hàng.");
 
+      // 1. COD
       if (order.paymentMethod === "COD") {
-        toast.success("Đặt hàng thành công!");
-        setCount(0);
-        nav(`/order-success/${order.id}`);
+        toast.success("Đặt hàng thành công! 🎉");
+        setCount(0); // Reset cart count
+        // Chuyển trang sau 1s để user kịp đọc toast
+        setTimeout(() => nav(`/order-success/${order.id}`), 1000);
         return;
       }
 
+      // 2. PayOS
       if (order.paymentMethod === "PAYOS") {
+        toast.loading("Đang chuyển sang cổng thanh toán...", { duration: 3000 });
         const payUrl = await createPaymentLink(order.id);
         if (!payUrl) throw new Error("Lỗi kết nối cổng thanh toán.");
         window.location.href = payUrl;
@@ -254,6 +242,7 @@ export default function CheckoutPage() {
 
     } catch (e) {
       toast.dismiss(loadingToast);
+      // Hiển thị lỗi chi tiết từ Backend (ví dụ: Tồn kho không đủ)
       const msg = e?.response?.data?.message || e?.message || "Đặt hàng thất bại";
       toast.error(msg);
     } finally {
@@ -270,11 +259,11 @@ export default function CheckoutPage() {
         
         {/* Cột Trái: Giỏ hàng + Mã giảm giá */}
         <div className="card card-hover">
-          <div className="card-title">Giỏ hàng ({items.length} món)</div>
+          <div className="card-title">Đơn hàng ({items.length} món)</div>
           
           {!items.length ? (
             <div className="muted" style={{padding: '20px 0', textAlign: 'center'}}>
-                Giỏ hàng trống. <Link to="/" style={{color: 'var(--primary)', fontWeight: 600}}>Mua hàng ngay</Link>
+                Giỏ hàng trống. <Link to="/menu" style={{color: 'var(--primary)', fontWeight: 600}}>Mua hàng ngay</Link>
             </div>
           ) : (
             <>
@@ -348,7 +337,7 @@ export default function CheckoutPage() {
                             setPromoCode(e.target.value.toUpperCase());
                             if (promoMsg) { setPromoMsg(""); setPromoStatus(""); }
                         }} 
-                        placeholder="Nhập mã giảm giá"
+                        placeholder="Nhập mã (VD: HELLO2024)"
                         disabled={!!appliedCode || checkingCode}
                         style={{ flex: 1 }}
                         onKeyDown={(e) => e.key === 'Enter' && handleApplyCoupon()}
@@ -390,12 +379,6 @@ export default function CheckoutPage() {
                     <span>Tổng thanh toán</span>
                     <span style={{color: 'var(--primary)'}}>{fmt(total)}</span>
                  </div>
-              </div>
-
-              <div style={{marginTop: 16, textAlign: 'right'}}>
-                  <button className="btn btn-ghost btn-sm text-red" onClick={onClear} disabled={cartActionLoading} style={{fontSize: '0.85rem'}}>
-                      Xoá tất cả
-                  </button>
               </div>
             </>
           )}

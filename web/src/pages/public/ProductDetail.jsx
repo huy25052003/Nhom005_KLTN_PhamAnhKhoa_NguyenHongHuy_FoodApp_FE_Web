@@ -1,6 +1,6 @@
 import React from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import toast from "react-hot-toast";
+import toast from "react-hot-toast"; // Đã có sẵn, chỉ cần tận dụng tốt hơn
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getProduct } from "../../api/products";
 import { addToCart, getCart } from "../../api/cart";
@@ -52,24 +52,26 @@ export default function ProductDetailPage() {
       const items = cart?.items || cart?.cartItems || [];
       const totalQty = items.reduce((s, it) => s + (it?.quantity ?? 0), 0);
       setCount(totalQty);
-      alert("Đã thêm vào giỏ");
+      toast.success("Đã thêm vào giỏ hàng!"); // Dùng Toast
       qc.invalidateQueries({ queryKey: ["cart"] });
     },
-    onError: (e) => alert(e?.response?.data?.error || "Thêm giỏ hàng thất bại"),
+    onError: (e) => toast.error(e?.response?.data?.error || "Thêm giỏ hàng thất bại"), // Dùng Toast
   });
 
   const handleAddToCart = () => {
     if (!token) {
-      nav("/admin/login?redirect=/cart");
+      // Thông báo nhẹ trước khi chuyển trang
+      toast("Vui lòng đăng nhập để mua hàng", { icon: '🔑' });
+      nav("/admin/login?redirect=/products/" + pid);
       return;
     }
 
-    if (product.stock <=0){
+    if (product.stock <= 0){
       toast.error("Sản phẩm đã hết hàng");
       return;
     }
     if (qty > product.stock){
-      toast.error(`Số lượng trong kho không đủ. Hiện có ${product.stock} sản phẩm.`);
+      toast.error(`Chỉ còn ${product.stock} sản phẩm trong kho.`);
       return;
     }
     addToCartMutation.mutate();
@@ -82,16 +84,20 @@ export default function ProductDetailPage() {
     onSuccess: () => {
       setComment("");
       setRating(5);
+      toast.success("Cảm ơn bạn đã đánh giá!");
       qc.invalidateQueries({ queryKey: ["reviews", pid] });
       qc.invalidateQueries({ queryKey: ["reviews-avg", pid] });
     },
-    onError: (e) => alert(e?.response?.data?.error || "Gửi đánh giá thất bại"),
+    onError: (e) => toast.error(e?.response?.data?.error || "Gửi đánh giá thất bại"),
   });
 
   const delMut = useMutation({
     mutationFn: (rid) => deleteReview(pid, rid),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["reviews", pid] }),
-    onError: (e) => alert(e?.response?.data?.error || "Xoá đánh giá thất bại"),
+    onSuccess: () => {
+        toast.success("Đã xóa đánh giá");
+        qc.invalidateQueries({ queryKey: ["reviews", pid] });
+    },
+    onError: (e) => toast.error(e?.response?.data?.error || "Xoá đánh giá thất bại"),
   });
 
   function canDeleteReview(r) {
@@ -114,88 +120,94 @@ export default function ProductDetailPage() {
           />
         </div>
         <div className="pd-info">
-          <div className="pd-stock" style={{ color: product.stock > 0 ? 'var(--primary)' : 'red' }}>
-              {product.stock > 0 ? `Còn hàng: ${product.stock}` : "Tạm hết hàng"}
-          </div>
-
-          <div className="pd-cart">
-            <button
-                className="btn"
-                disabled={addToCartMutation.isPending || product.stock <= 0} 
-                onClick={handleAddToCart}
-                style={{ opacity: product.stock <= 0 ? 0.5 : 1 }}
-              >
-                {product.stock <= 0 ? "Hết hàng" : addToCartMutation.isPending ? "Đang thêm..." : "Thêm vào giỏ"}
-              </button>
-          </div>
           <h1 className="pd-name">{product.name}</h1>
           <div className="pd-price">{formatVND(product.price)}</div>
-          {product.stock != null && <div className="pd-stock">Còn hàng: {product.stock}</div>}
-          <div className="pd-avg">
-            <Stars value={avgRating} /> <span className="pd-avg-num">({avgRating.toFixed(1)})</span>
+          
+          <div className="pd-avg" style={{marginBottom: 10}}>
+            <Stars value={avgRating} /> <span className="pd-avg-num">({avgRating.toFixed(1)} / 5)</span>
           </div>
+
+          <div className="pd-stock" style={{ color: product.stock > 0 ? 'var(--primary)' : 'red', fontWeight: 600 }}>
+              {product.stock > 0 ? `✓ Còn hàng: ${product.stock}` : "✕ Tạm hết hàng"}
+          </div>
+
           {product.description && <p className="pd-desc">{product.description}</p>}
-          <div className="pd-cart">
-            <label className="qty-label">Số lượng</label>
+          
+          <div className="pd-cart" style={{marginTop: 20}}>
             <div className="qty-box">
-              <button
-                type="button"
-                onClick={() => setQty((q) => Math.max(1, q - 1))}
-                aria-label="Giảm"
-              >
-                −
-              </button>
-              <input
-                className="qty-input"
-                type="number"
-                min="1"
-                value={qty}
-                onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))}
-              />
-              <button
-                type="button"
-                onClick={() => setQty((q) => q + 1)}
-                aria-label="Tăng"
-              >
-                +
-              </button>
+              <button type="button" onClick={() => setQty((q) => Math.max(1, q - 1))}>−</button>
+              <input className="qty-input" type="number" min="1" value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))} />
+              <button type="button" onClick={() => setQty((q) => q + 1)}>+</button>
             </div>
             <button
-              className="btn"
-              disabled={addToCartMutation.isPending}
+              className="btn btn-primary"
+              disabled={addToCartMutation.isPending || product.stock <= 0}
               onClick={handleAddToCart}
+              style={{ opacity: product.stock <= 0 ? 0.5 : 1 }}
             >
-              {addToCartMutation.isPending ? "Đang thêm…" : "Thêm vào giỏ"}
+              {product.stock <= 0 ? "Hết hàng" : addToCartMutation.isPending ? "Đang thêm..." : "Thêm vào giỏ"}
             </button>
           </div>
         </div>
       </div>
 
       <div className="pd-reviews">
-        <h2>Đánh giá</h2>
+        <h2 className="h2">Đánh giá từ khách hàng</h2>
+        {/* Form đánh giá */}
+        <div className="review-form card" style={{background: '#f9fafb', padding: 20, marginBottom: 20}}>
+          {!token ? (
+            <div className="muted">Vui lòng <Link to="/admin/login">đăng nhập</Link> để viết đánh giá.</div>
+          ) : (
+            <form onSubmit={(e) => { e.preventDefault(); createMut.mutate(); }}>
+              <h4 style={{marginTop:0}}>Viết đánh giá của bạn</h4>
+              <div className="flex-row gap-2" style={{marginBottom: 10}}>
+                 <label>Đánh giá:</label>
+                 <select className="input" style={{width: 'auto'}} value={rating} onChange={(e) => setRating(Number(e.target.value))}>
+                    <option value="5">5 Sao (Tuyệt vời)</option>
+                    <option value="4">4 Sao (Tốt)</option>
+                    <option value="3">3 Sao (Bình thường)</option>
+                    <option value="2">2 Sao (Tệ)</option>
+                    <option value="1">1 Sao (Rất tệ)</option>
+                 </select>
+              </div>
+              <textarea
+                className="input" rows="3"
+                placeholder="Chia sẻ cảm nhận của bạn về món ăn này..."
+                value={comment} onChange={(e) => setComment(e.target.value)}
+                style={{marginBottom: 10}}
+              />
+              <button className="btn" disabled={createMut.isPending}>
+                {createMut.isPending ? "Đang gửi..." : "Gửi đánh giá"}
+              </button>
+            </form>
+          )}
+        </div>
+
+        {/* List đánh giá */}
         {loadingReviews ? (
           <div>Đang tải đánh giá…</div>
         ) : reviews.length === 0 ? (
-          <div>Chưa có đánh giá nào.</div>
+          <div className="muted">Chưa có đánh giá nào. Hãy là người đầu tiên!</div>
         ) : (
           <ul className="review-list">
             {reviews.map((r) => (
               <li key={r.id} className="review-item">
                 <div className="review-head">
-                  <strong>{r.userName || "Người dùng"}</strong>
-                  <span className="review-time">
+                  <div style={{fontWeight: 600}}>{r.userName || "Khách hàng"}</div>
+                  <span className="review-time muted" style={{fontSize: '0.8rem'}}>
                     {r.createdAt ? new Date(r.createdAt).toLocaleString() : ""}
                   </span>
                 </div>
-                <div className="review-rating">
+                <div className="review-rating" style={{color: '#f59e0b'}}>
                   <Stars value={r.rating} />
                 </div>
-                {r.comment && <div className="review-comment">{r.comment}</div>}
+                {r.comment && <div className="review-comment" style={{marginTop: 4}}>{r.comment}</div>}
                 {canDeleteReview(r) && (
                   <button
-                    className="btn btn-ghost"
+                    className="btn btn-ghost btn-sm text-red"
                     onClick={() => delMut.mutate(r.id)}
                     disabled={delMut.isPending}
+                    style={{marginTop: 8, fontSize: '0.8rem'}}
                   >
                     Xoá
                   </button>
@@ -204,37 +216,6 @@ export default function ProductDetailPage() {
             ))}
           </ul>
         )}
-        <div className="review-form">
-          <h3>Viết đánh giá</h3>
-          {!token ? (
-            <div>Vui lòng đăng nhập để đánh giá.</div>
-          ) : (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                createMut.mutate();
-              }}
-            >
-              <label className="label">Điểm (1–5)</label>
-              <select value={rating} onChange={(e) => setRating(Number(e.target.value))}>
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
-              <label className="label">Nhận xét</label>
-              <textarea
-                className="input"
-                rows="3"
-                placeholder="Cảm nhận của bạn…"
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-              />
-              <button className="btn btn-primary" disabled={createMut.isPending}>
-                {createMut.isPending ? "Đang gửi…" : "Gửi đánh giá"}
-              </button>
-            </form>
-          )}
-        </div>
       </div>
     </div>
   );
@@ -244,8 +225,8 @@ function Stars({ value = 0 }) {
   const full = Math.round(Number(value) || 0);
   return (
     <span className="rating-stars" title={`${value}/5`}>
-      {"★★★★★".slice(0, full)}
-      {"☆☆☆☆☆".slice(0, 5 - full)}
+      {"★".repeat(full)}
+      {"☆".repeat(5 - full)}
     </span>
   );
 }
