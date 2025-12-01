@@ -28,6 +28,7 @@ import KitchenDashboard from "./pages/kitchen/KitchenDashboard.jsx";
 import ProtectedKitchen from "./component/ProtectedKitchen.jsx";
 import KitchenLayout from "./component/KitchenLayout.jsx";
 import AdminChatPage from "./pages/admin/AdminChat.jsx";
+import AdminPromotionsPage from "./pages/admin/Promotions.jsx";
 
 export default function App() {
   return (
@@ -67,6 +68,7 @@ export default function App() {
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="users" element={<AdminUsersPage />} />
         <Route path="chat" element={<AdminChatPage />} />
+        <Route path="promotions" element={<AdminPromotionsPage />} />
       </Route>
 
         <Route

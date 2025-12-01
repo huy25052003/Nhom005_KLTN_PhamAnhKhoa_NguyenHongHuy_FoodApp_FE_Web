@@ -4,6 +4,7 @@ import { getCart, updateCartItem, removeCartItem, clearCart } from "../../api/ca
 import { placeOrder } from "../../api/orders.js";
 import { createPaymentLink } from "../../api/payment.js";
 import { getMyShipping } from "../../api/shipping.js";
+import { previewPromotion } from "../../api/promotions.js"; 
 import { useAuth } from "../../stores/auth.js";
 import { useCart } from "../../stores/cart.js";
 
@@ -19,12 +20,20 @@ export default function CheckoutPage() {
   const [method, setMethod] = useState("COD");
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
-  const [promoCode, setPromoCode] = useState("");
   const [cartActionLoading, setCartActionLoading] = useState(false);
 
   const [shipping, setShipping] = useState(null);
+  
+  // --- PROMOTION STATE ---
+  const [promoCode, setPromoCode] = useState("");
+  const [discount, setDiscount] = useState(0);
+  const [appliedCode, setAppliedCode] = useState(null);
+  const [promoMsg, setPromoMsg] = useState("");
+  const [checkingCode, setCheckingCode] = useState(false);
+
   const isShippingValid = !!(shipping && shipping.phone && shipping.addressLine);
 
+  // Load Cart & Shipping Info
   async function loadData() {
     setLoading(true);
     try {
@@ -38,11 +47,14 @@ export default function CheckoutPage() {
       ]);
       setCart(c);
       setShipping(s);
+      
+      // Update global cart count
       const items = c?.items || c?.cartItems || [];
       const totalQty = items.reduce((sum, it) => sum + (it?.quantity ?? 0), 0);
       setCount(totalQty);
+
     } catch (e) {
-      console.error("Failed to load cart/shipping", e);
+      console.error("Failed to load data", e);
     } finally {
       setLoading(false);
     }
@@ -51,15 +63,21 @@ export default function CheckoutPage() {
   useEffect(() => {
     const m = (sp.get("method") || "").toUpperCase();
     if (m === "PAYOS") setMethod("PAYOS");
-    if (m === "COD") setMethod("COD");
     loadData();
-  }, [token, nav, sp]);
+  }, [token]);
 
   const items = cart?.items || cart?.cartItems || [];
-  const total = useMemo(
+
+  // Tính tổng tiền
+  const subtotal = useMemo(
     () => items.reduce((s, it) => s + (it?.quantity || 0) * (it?.product?.price || it?.price || 0), 0),
     [items]
   );
+
+  // Tổng cuối cùng sau khi giảm giá
+  const total = Math.max(0, subtotal - discount);
+
+  // --- HANDLERS: Cart Actions ---
 
   async function changeQty(item, delta) {
     if (cartActionLoading) return;
@@ -68,6 +86,12 @@ export default function CheckoutPage() {
     try {
       await updateCartItem(item.id, next);
       await loadData();
+      // Reset promotion khi giỏ hàng thay đổi
+      if (appliedCode) {
+         setAppliedCode(null);
+         setDiscount(0);
+         setPromoMsg("Giỏ hàng thay đổi, vui lòng áp lại mã.");
+      }
     } catch (e) {
       alert(e?.response?.data?.message || e?.message || "Cập nhật số lượng thất bại");
     } finally {
@@ -81,6 +105,11 @@ export default function CheckoutPage() {
     try {
       await removeCartItem(item.id);
       await loadData();
+      if (appliedCode) {
+         setAppliedCode(null);
+         setDiscount(0);
+         setPromoMsg("Giỏ hàng thay đổi, vui lòng áp lại mã.");
+      }
     } catch (e) {
        alert(e?.response?.data?.message || e?.message || "Xóa sản phẩm thất bại");
     } finally {
@@ -94,6 +123,9 @@ export default function CheckoutPage() {
     try {
       await clearCart();
       await loadData();
+      setDiscount(0);
+      setAppliedCode(null);
+      setPromoCode("");
     } catch (e) {
        alert(e?.response?.data?.message || e?.message || "Xóa giỏ hàng thất bại");
     } finally {
@@ -101,8 +133,43 @@ export default function CheckoutPage() {
     }
   }
 
+  // --- HANDLERS: Promotion ---
+
+  async function handleApplyCoupon() {
+    if (!promoCode.trim()) return;
+    setCheckingCode(true);
+    setPromoMsg("");
+    try {
+      const payloadItems = items.map(it => ({
+        productId: it.product?.id || it.productId,
+        quantity: it.quantity
+      }));
+      
+      const res = await previewPromotion(promoCode, payloadItems);
+      
+      if (res.discount > 0) {
+        setDiscount(res.discount);
+        setAppliedCode(res.code || promoCode);
+        setPromoMsg(`✅ Áp dụng thành công: -${fmt(res.discount)}`);
+      } else {
+        setDiscount(0);
+        setAppliedCode(null);
+        setPromoMsg(`⚠️ ${res.message || "Mã không hợp lệ"}`);
+      }
+    } catch (e) {
+      console.error(e);
+      setDiscount(0);
+      setAppliedCode(null);
+      setPromoMsg("❌ Lỗi kiểm tra mã: " + (e?.response?.data?.message || e.message));
+    } finally {
+      setCheckingCode(false);
+    }
+  }
+
+  // --- HANDLERS: Place Order ---
+
   async function handlePlaceOrder() {
-     if (!items.length) { alert("Giỏ hàng trống."); return; }
+    if (!items.length) { alert("Giỏ hàng trống."); return; }
     if (!isShippingValid) {
       alert("Vui lòng nhập thông tin giao hàng trước khi đặt.");
       nav(`/account/shipping?redirect=${encodeURIComponent("/checkout")}`);
@@ -111,8 +178,9 @@ export default function CheckoutPage() {
 
     setPlacing(true);
     try {
+      // Payload chuẩn bị cho Backend
       const orderItemsPayload = items.map(it => ({
-        product: { id: it.product?.id },
+        product: { id: it.product?.id || it.productId },
         quantity: it.quantity
       }));
 
@@ -127,28 +195,32 @@ export default function CheckoutPage() {
         items: orderItemsPayload,
         shippingInfo: shippingInfoPayload,
         paymentMethod: method,
-        promoCode: promoCode.trim() || null
+        promoCode: appliedCode // Gửi mã giảm giá đã áp dụng
       };
 
       const order = await placeOrder(requestPayload);
       if (!order?.id) throw new Error("Không tạo được đơn hàng.");
 
+      // 1. Thanh toán COD
       if (order.paymentMethod === "COD") {
-        alert("Đặt hàng thành công! Bạn sẽ thanh toán khi nhận hàng.");
+        // alert(`Đặt hàng thành công! Mã đơn: ${order.id}`);
         setCount(0);
         nav(`/order-success/${order.id}`);
         return;
       }
 
+      // 2. Thanh toán PayOS
       if (order.paymentMethod === "PAYOS") {
-        try { sessionStorage.setItem("lastPayOrderId", String(order.id)); } catch {}
         const payUrl = await createPaymentLink(order.id);
-        if (!payUrl) throw new Error("Không nhận được payment URL từ PayOS.");
+        if (!payUrl) throw new Error("Không nhận được link thanh toán từ PayOS.");
         window.location.href = payUrl;
         return;
       }
-      alert("Phương thức thanh toán không hợp lệ.");
+
+      alert("Phương thức thanh toán không xác định.");
+
     } catch (e) {
+      console.error(e);
       alert(e?.response?.data?.message || e?.message || "Đặt hàng thất bại");
     } finally {
       setPlacing(false);
@@ -159,25 +231,26 @@ export default function CheckoutPage() {
 
   return (
     <div className="container section fade-in">
-      <h1 className="h1">Giỏ hàng & Thanh toán</h1>
+      <h1 className="h1">Thanh toán</h1>
       <div className="grid2">
+        
+        {/* Cột Trái: Giỏ hàng + Mã giảm giá */}
         <div className="card card-hover">
           <div className="card-title">Giỏ hàng của bạn</div>
-          {loading && <div>Đang cập nhật giỏ hàng...</div>}
+          
           {!items.length ? (
-            <div className="muted">Giỏ hàng trống. <Link to="/">Mua hàng</Link></div>
+            <div className="muted">Giỏ hàng trống. <Link to="/">Mua hàng ngay</Link></div>
           ) : (
             <>
               <div style={{ maxHeight: '400px', overflowY: 'auto', marginBottom: '1rem' }}>
                 <table className="table">
                   <thead>
                     <tr>
-                      <th style={{ width: 72 }}></th>
+                      <th style={{ width: 60 }}></th>
                       <th>Sản phẩm</th>
-                      <th style={{ textAlign: "right" }}>Giá</th>
-                      <th style={{ textAlign: "center" }}>Số lượng</th>
+                      <th style={{ textAlign: "center" }}>SL</th>
                       <th style={{ textAlign: "right" }}>Thành tiền</th>
-                      <th></th>
+                      <th style={{ width: 40 }}></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -190,27 +263,35 @@ export default function CheckoutPage() {
                             <Link to={`/products/${p.id}`}>
                               <div
                                 style={{
-                                  width: 56, height: 56, borderRadius: 8,
+                                  width: 48, height: 48, borderRadius: 8,
                                   background: `#f4f4f4 url(${p.imageUrl || "/placeholder.jpg"}) center/cover no-repeat`
                                 }}
                               />
                             </Link>
                           </td>
                           <td>
-                            <Link to={`/products/${p.id}`} style={{ fontWeight: 600, color: 'inherit', textDecoration: 'none' }}>{p.name || it.name}</Link>
-                            {p.category?.name && <div className="muted">{p.category.name}</div>}
+                            <Link to={`/products/${p.id}`} style={{ fontWeight: 600, color: 'inherit', textDecoration: 'none' }}>
+                              {p.name || it.name}
+                            </Link>
+                            <div className="muted" style={{fontSize: '0.8rem'}}>{fmt(price)}</div>
                           </td>
-                          <td style={{ textAlign: "right" }}>{fmt(price)}</td>
                           <td style={{ textAlign: "center" }}>
-                            <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                              <button className="btn" onClick={() => changeQty(it, -1)} disabled={cartActionLoading || it.quantity <= 1}>−</button>
-                              <div style={{ minWidth: 28, textAlign: "center" }}>{it.quantity}</div>
-                              <button className="btn" onClick={() => changeQty(it, +1)} disabled={cartActionLoading}>+</button>
+                            <div style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                              <button className="btn btn-sm" onClick={() => changeQty(it, -1)} disabled={cartActionLoading || it.quantity <= 1} style={{padding:'2px 8px'}}>−</button>
+                              <div style={{ minWidth: 20, textAlign: "center", fontSize:'0.9rem' }}>{it.quantity}</div>
+                              <button className="btn btn-sm" onClick={() => changeQty(it, +1)} disabled={cartActionLoading} style={{padding:'2px 8px'}}>+</button>
                             </div>
                           </td>
-                          <td style={{ textAlign: "right" }}>{fmt(price * (it.quantity || 0))}</td>
+                          <td style={{ textAlign: "right", fontWeight: 500 }}>{fmt(price * (it.quantity || 0))}</td>
                           <td style={{ textAlign: "right" }}>
-                            <button className="btn btn-danger" onClick={() => onRemove(it)} disabled={cartActionLoading}>Xoá</button>
+                            <button 
+                                className="btn btn-danger btn-sm" 
+                                onClick={() => onRemove(it)} 
+                                disabled={cartActionLoading}
+                                style={{padding:'4px 8px'}}
+                            >
+                                ×
+                            </button>
                           </td>
                         </tr>
                       );
@@ -218,84 +299,142 @@ export default function CheckoutPage() {
                   </tbody>
                 </table>
               </div>
-              <div style={{ borderTop: '1px solid #eee', paddingTop: '1rem', marginTop: '1rem' }}>
-                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, marginBottom: '1rem' }}>
+
+              {/* Mã giảm giá */}
+              <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, marginTop: 16 }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569' }}>Mã khuyến mãi</label>
+                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                    <input 
+                        className="input" 
+                        value={promoCode} 
+                        onChange={e => setPromoCode(e.target.value.toUpperCase())} 
+                        placeholder="Nhập mã giảm giá"
+                        disabled={!!appliedCode}
+                        style={{ flex: 1 }}
+                    />
+                    {appliedCode ? (
+                        <button className="btn btn-danger" onClick={() => { setAppliedCode(null); setDiscount(0); setPromoCode(""); setPromoMsg(""); }}>
+                            Gỡ
+                        </button>
+                    ) : (
+                        <button className="btn btn-primary" onClick={handleApplyCoupon} disabled={checkingCode || !promoCode}>
+                            {checkingCode ? "..." : "Áp dụng"}
+                        </button>
+                    )}
+                </div>
+                {promoMsg && (
+                    <div style={{ fontSize: '0.85rem', marginTop: 6, color: appliedCode ? 'green' : '#dc2626' }}>
+                        {promoMsg}
+                    </div>
+                )}
+              </div>
+
+              {/* Tổng tiền */}
+              <div style={{ borderTop: '1px dashed #e2e8f0', paddingTop: '1rem', marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                 <div className="flex-row space-between">
+                    <span className="muted">Tạm tính</span>
+                    <span>{fmt(subtotal)}</span>
+                 </div>
+                 {discount > 0 && (
+                    <div className="flex-row space-between" style={{color: 'var(--primary)'}}>
+                        <span>Giảm giá ({appliedCode})</span>
+                        <span>- {fmt(discount)}</span>
+                    </div>
+                 )}
+                 <div className="flex-row space-between" style={{ fontSize: '1.25rem', fontWeight: 700, marginTop: 8, color: '#0f172a' }}>
                     <span>Tổng cộng</span>
                     <span>{fmt(total)}</span>
-                  </div>
-                 <div style={{ marginBottom: '1rem' }}>
-                    <label htmlFor="promoCode" style={{ marginRight: '8px', fontWeight: 600 }}>Mã giảm giá:</label>
-                    <input
-                      id="promoCode"
-                      className="input"
-                      value={promoCode}
-                      onChange={(e) => setPromoCode(e.target.value)}
-                      placeholder="Nhập mã (nếu có)"
-                      style={{ width: 'auto', display: 'inline-block', marginRight: '8px' }}
-                    />
-                  </div>
-                  <button className="btn btn-danger" onClick={onClear} disabled={cartActionLoading}>Xoá toàn bộ giỏ hàng</button>
+                 </div>
+              </div>
+
+              <div style={{marginTop: 16, textAlign: 'right'}}>
+                  <button className="btn btn-outline btn-sm text-red" onClick={onClear} disabled={cartActionLoading}>
+                      Xoá giỏ hàng
+                  </button>
               </div>
             </>
           )}
         </div>
-        <div className="card card-hover">
+
+        {/* Cột Phải: Thông tin & Thanh toán */}
+        <div className="card card-hover" style={{ height: 'fit-content' }}>
           <div className="card-title">Thông tin giao hàng</div>
-          {loading && !shipping && <div>Đang tải thông tin...</div>}
+          
+          {loading && !shipping && <div className="muted">Đang tải...</div>}
+          
           {!isShippingValid && !loading && (
-            <div className="muted">
-              Chưa có thông tin giao hàng.{" "}
-              <Link className="btn" to={`/account/shipping?redirect=${encodeURIComponent("/checkout")}`}>
-                Nhập thông tin giao hàng
+            <div className="muted" style={{marginBottom: 16}}>
+              Bạn chưa có thông tin giao hàng.{" "}
+              <Link to={`/account/shipping?redirect=${encodeURIComponent("/checkout")}`} style={{color: 'var(--primary)', fontWeight: 600}}>
+                Thêm ngay
               </Link>
             </div>
           )}
+          
           {isShippingValid && (
-             <div style={{ lineHeight: 1.6 }}>
-              <div><b>Điện thoại:</b> {shipping.phone}</div>
-              <div><b>Địa chỉ:</b> {shipping.addressLine}</div>
-              {shipping.city ? <div><b>Tỉnh/Thành:</b> {shipping.city}</div> : null}
-              {shipping.note ? <div><b>Ghi chú:</b> {shipping.note}</div> : null}
-              <div style={{ marginTop: 8 }}>
-                <Link className="btn btn-ghost" to={`/account/shipping?redirect=${encodeURIComponent("/checkout")}`}>
-                  Sửa thông tin giao hàng
+             <div style={{ marginBottom: 16, padding: 12, background: '#f8fafc', borderRadius: 8, fontSize: '0.9rem' }}>
+              <div style={{ fontWeight: 600, marginBottom: 2 }}>{shipping.phone}</div>
+              <div style={{ color: '#475569' }}>{shipping.addressLine}</div>
+              {shipping.city && <div style={{ color: '#475569' }}>{shipping.city}</div>}
+              {shipping.note && <div style={{ color: '#475569', fontStyle: 'italic', marginTop: 4 }}>" {shipping.note} "</div>}
+              <div style={{ marginTop: 8, textAlign: 'right' }}>
+                <Link to={`/account/shipping?redirect=${encodeURIComponent("/checkout")}`} style={{ fontSize: '0.8rem', color: 'var(--primary)', textDecoration: 'none' }}>
+                  Chỉnh sửa
                 </Link>
               </div>
             </div>
           )}
-          <hr style={{ margin: "16px 0", opacity: 0.15 }} />
-          <div className="card-title" style={{ marginTop: 0 }}>Phương thức thanh toán</div>
-          <label className="radio-row" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-            <input
-              type="radio"
-              name="pm"
-              value="COD"
-              checked={method === "COD"}
-              onChange={() => setMethod("COD")}
-              style={{ marginRight: '8px' }}
-            />
-            <span>COD (Thanh toán khi nhận hàng)</span>
-          </label>
-          <label className="radio-row" style={{ display: 'flex', alignItems: 'center' }}>
-            <input
-              type="radio"
-              name="pm"
-              value="PAYOS"
-              checked={method === "PAYOS"}
-              onChange={() => setMethod("PAYOS")}
-              style={{ marginRight: '8px' }}
-            />
-            <span>PayOS (Thanh toán online)</span>
-          </label>
-          <div style={{ marginTop: 16 }}>
+
+          <hr style={{ margin: "16px 0", border: 0, borderTop: '1px solid #eee' }} />
+          
+          <div className="card-title">Phương thức thanh toán</div>
+          <div className="vstack gap-2">
+            <label className="card" style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', border: method === "COD" ? '1px solid var(--primary)' : '1px solid var(--border)', padding: 12 }}>
+                <input 
+                    type="radio" 
+                    name="pm" 
+                    value="COD" 
+                    checked={method === "COD"} 
+                    onChange={() => setMethod("COD")} 
+                    style={{ width: 18, height: 18 }}
+                />
+                <div>
+                    <div style={{ fontWeight: 600 }}>Thanh toán khi nhận hàng (COD)</div>
+                    <div className="muted" style={{ fontSize: '0.8rem' }}>Trả tiền mặt cho shipper</div>
+                </div>
+            </label>
+
+            <label className="card" style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', border: method === "PAYOS" ? '1px solid var(--primary)' : '1px solid var(--border)', padding: 12 }}>
+                <input 
+                    type="radio" 
+                    name="pm" 
+                    value="PAYOS" 
+                    checked={method === "PAYOS"} 
+                    onChange={() => setMethod("PAYOS")} 
+                    style={{ width: 18, height: 18 }}
+                />
+                <div>
+                    <div style={{ fontWeight: 600 }}>Thanh toán Online (PayOS)</div>
+                    <div className="muted" style={{ fontSize: '0.8rem' }}>Quét mã QR qua App ngân hàng</div>
+                </div>
+            </label>
+          </div>
+
+          <div style={{ marginTop: 24 }}>
             <button
               className="btn btn-primary w-full"
+              style={{ fontSize: '1.1rem', padding: '14px' }}
               disabled={!items.length || placing || !isShippingValid || cartActionLoading || loading}
               onClick={handlePlaceOrder}
-              title={!isShippingValid ? "Vui lòng nhập thông tin giao hàng" : !items.length ? "Giỏ hàng trống" : ""}
             >
-              {placing ? "Đang xử lý..." : method === "COD" ? "Đặt hàng (COD)" : "Tiếp tục với PayOS"}
+              {placing ? "Đang xử lý..." : `Đặt hàng • ${fmt(total)}`}
             </button>
+            
+            {!isShippingValid && items.length > 0 && (
+                <div style={{ textAlign: 'center', marginTop: 8, fontSize: '0.8rem', color: '#dc2626' }}>
+                    * Vui lòng nhập địa chỉ giao hàng
+                </div>
+            )}
           </div>
         </div>
       </div>

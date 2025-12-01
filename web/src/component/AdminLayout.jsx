@@ -1,28 +1,30 @@
 import React, { useState } from "react";
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../stores/auth";
-// Các icon giữ nguyên
+import AdminNotifyBell from "../pages/admin/AdminNotifyBell.jsx"; // <--- 1. Import Bell
+
+// Các icon
 import {
   FaHome, FaBox, FaListAlt, FaClipboardList, FaUsers,
-  FaUtensils, FaSignOutAlt, FaBars // Thêm icon FaBars cho nút menu
+  FaUtensils, FaSignOutAlt, FaBars, FaChartPie, FaComments
 } from "react-icons/fa";
 
 function AdminLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [showSidebar, setShowSidebar] = useState(false); // State điều khiển menu mobile
+  const [showSidebar, setShowSidebar] = useState(false);
 
-  // Danh sách menu (Giữ nguyên data của bạn)
+  // Danh sách menu
   const menuItems = [
-    { path: "/admin/", label: "Tổng quan", icon: <FaHome /> },
+    { path: "/admin", label: "Tổng quan", icon: <FaHome /> }, // Sửa path khớp với index route
     { path: "/admin/products", label: "Sản phẩm", icon: <FaBox /> },
     { path: "/admin/categories", label: "Danh mục", icon: <FaListAlt /> },
     { path: "/admin/orders", label: "Đơn hàng", icon: <FaClipboardList /> },
     { path: "/admin/users", label: "Người dùng", icon: <FaUsers /> },
-    { path: "/admin/analytics", label: "Thống kê", icon: <FaUsers /> },
-    { path: "/admin/chat", label: "Hỗ trợ khách hàng", icon: <FaUsers /> },
-
+    { path: "/admin/analytics", label: "Thống kê", icon: <FaChartPie /> }, // Đổi icon cho hợp
+    { path: "/admin/chat", label: "Hỗ trợ khách hàng", icon: <FaComments /> }, // Đổi icon cho hợp
+    { path: "/admin/promotions", label: "Khuyến mãi", icon: <FaUtensils /> },
   ];
 
   if (user?.roles?.includes("ROLE_ADMIN")) {
@@ -31,22 +33,23 @@ function AdminLayout() {
 
   const handleLogout = () => {
     logout();
-    navigate("/login");
+    navigate("/admin/login");
   };
 
-  // Hàm toggle và đóng sidebar
   const toggleSidebar = () => setShowSidebar(!showSidebar);
   const closeSidebar = () => setShowSidebar(false);
 
-  // Lấy tiêu đề trang hiện tại
-  const currentItem = menuItems.find(item => item.path === location.pathname || location.pathname.startsWith(item.path + '/'));
+  // Lấy tiêu đề trang hiện tại (Logic khớp chính xác hơn)
+  const currentItem = menuItems.find(item => {
+     if (item.path === "/admin" && location.pathname === "/admin") return true;
+     return item.path !== "/admin" && location.pathname.startsWith(item.path);
+  });
   const pageTitle = currentItem ? currentItem.label : "Quản trị hệ thống";
 
   return (
-    // Áp dụng class layout mới
     <div className="admin-layout fade-in">
       
-      {/* Overlay cho mobile khi mở menu */}
+      {/* Overlay cho mobile */}
       <div className={`sidebar-overlay ${showSidebar ? 'show' : ''}`} onClick={closeSidebar}></div>
 
       {/* --- SIDEBAR --- */}
@@ -60,9 +63,9 @@ function AdminLayout() {
             <NavLink
               key={item.path}
               to={item.path}
-              // Class active sẽ tự động được NavLink thêm vào
-              className="menu-item"
-              onClick={closeSidebar} // Đóng menu khi click chọn trang (trên mobile)
+              end={item.path === "/admin"} // Chỉ exact cho trang dashboard
+              className={({ isActive }) => `menu-item ${isActive ? "active" : ""}`}
+              onClick={closeSidebar}
             >
               <span className="menu-icon">{item.icon}</span>
               <span>{item.label}</span>
@@ -71,7 +74,6 @@ function AdminLayout() {
         </nav>
 
         <div className="sidebar-footer">
-          {/* Avatar chữ cái đầu */}
           <div className="user-avatar">
             {user?.username?.charAt(0).toUpperCase() || 'A'}
           </div>
@@ -85,23 +87,23 @@ function AdminLayout() {
         </div>
       </aside>
 
-      {/* --- MAIN CONTENT AREA --- */}
+      {/* --- MAIN CONTENT --- */}
       <main className="admin-main">
-        {/* Header của phần nội dung */}
         <header className="main-header">
-          {/* Nút mở menu trên mobile */}
-          <button className="menu-toggle-btn" onClick={toggleSidebar}>
-            <FaBars />
-          </button>
-          {/* Tiêu đề trang */}
-          <h1 className="header-title">{pageTitle}</h1>
-          {/* (Có thể thêm phần thông báo, profile dropdown ở đây sau này) */}
-          <div style={{width: 24}}></div> 
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <button className="menu-toggle-btn" onClick={toggleSidebar}>
+              <FaBars />
+            </button>
+            <h1 className="header-title">{pageTitle}</h1>
+          </div>
+
+          {/* 2. Đặt AdminNotifyBell vào đây */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+             <AdminNotifyBell />
+          </div> 
         </header>
 
-        {/* Khu vực nội dung chính có thanh cuộn riêng */}
         <div className="main-content-scroll">
-          {/* Nội dung các trang con sẽ render ở đây */}
           <Outlet />
         </div>
       </main>
