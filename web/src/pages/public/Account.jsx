@@ -1,113 +1,241 @@
 import React, { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { getProfile, updateProfile, getMe } from "../../api/users";
+import { getMyShipping, upsertMyShipping } from "../../api/shipping";
 import PhoneVerifyModal from "../../component/PhoneVerifyModal";
+import EmailVerifyModal from "../../component/EmailVerifyModal";
+import { FaCheckCircle, FaExclamationTriangle, FaUser, FaHeartbeat, FaUtensils, FaMapMarkedAlt, FaSave } from "react-icons/fa";
+
+const API_HOST = "https://esgoo.net/api-tinhthanh-new";
 
 export default function AccountProfilePage() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [modalOpen, setModalOpen] = useState(false);
-  
+  const [phoneModalOpen, setPhoneModalOpen] = useState(false);
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+
+  // Address API State
+  const [provinces, setProvinces] = useState([]);
+  const [wards, setWards] = useState([]);
+
   const [form, setForm] = useState({
-    heightCm: "", weightKg: "", gender: "", allergies: "",
-    dietaryPreference: "", targetCalories: "", activityLevel: "", birthDate: "",
-    phone: "" 
+    // Profile
+    fullName: "", birthDate: "", gender: "MALE",
+    heightCm: "", weightKg: "", activityLevel: "MODERATE",
+    dietaryPreference: "", allergies: "", targetCalories: "", phone: "",
+    // Shipping
+    shippingPhone: "", pId: "", wId: "", houseNumber: "", note: ""
   });
 
+  // Load Data
   useEffect(() => {
     (async () => {
       try {
-        const [profileData, userData] = await Promise.all([
-          getProfile().catch(() => null),
-          getMe().catch(() => null)
+        const [profile, userData, shipping, provRes] = await Promise.all([
+          getProfile().catch(() => ({})),
+          getMe().catch(() => null),
+          getMyShipping().catch(() => null),
+          fetch(`${API_HOST}/1/0.htm`).then(r => r.json()).catch(() => ({ error: 1 }))
         ]);
 
+        if (provRes.error === 0) setProvinces(provRes.data);
         if (userData) {
             setUser(userData);
-            if(userData.phone) setForm(s => ({...s, phone: userData.phone}));
+            setForm(prev => ({ ...prev, phone: userData.phone || shipping?.phone || "" }));
         }
-        if (profileData) {
-            // Map profile data vào form...
-            setForm(prev => ({ ...prev, ...profileData })); // (Viết gọn)
-        }
-      } catch (e) {
-        toast.error("Lỗi tải dữ liệu");
-      } finally {
-        setLoading(false);
-      }
+
+        setForm(prev => ({
+            ...prev,
+            ...profile,
+            heightCm: profile?.heightCm || "",
+            weightKg: profile?.weightKg || "",
+            targetCalories: profile?.targetCalories || "",
+            
+            shippingPhone: shipping?.phone || userData?.phone || "",
+            houseNumber: shipping?.addressLine || "", // Show địa chỉ cũ dạng text
+            note: shipping?.note || ""
+        }));
+      } catch (e) { toast.error("Lỗi tải dữ liệu"); } 
+      finally { setLoading(false); }
     })();
   }, []);
 
-  function onChange(e) {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  }
+  // Fetch Wards
+  useEffect(() => {
+    if (!form.pId) { setWards([]); return; }
+    fetch(`${API_HOST}/2/${form.pId}.htm`).then(r => r.json()).then(res => {
+        if (res.error === 0) setWards(res.data);
+    });
+  }, [form.pId]);
 
-  async function onSubmit(e) {
+  const onChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+  const onSubmit = async (e) => {
     e.preventDefault();
     const loadId = toast.loading("Đang lưu...");
     try {
-      await updateProfile(form); // Gửi form cập nhật profile
-      toast.success("Đã lưu", { id: loadId });
-    } catch (e) {
-      toast.error("Lỗi lưu", { id: loadId });
-    }
-  }
+      await updateProfile({
+        fullName: form.fullName, birthDate: form.birthDate, gender: form.gender,
+        heightCm: Number(form.heightCm)||null, weightKg: Number(form.weightKg)||null,
+        activityLevel: form.activityLevel, dietaryPreference: form.dietaryPreference,
+        allergies: form.allergies, targetCalories: Number(form.targetCalories)||null,
+      });
 
-  const onVerifySuccess = (updatedUser) => {
-    setUser(updatedUser);
-    setForm(prev => ({ ...prev, phone: updatedUser.phone }));
+      // Logic save shipping
+      let addressToSave = form.houseNumber;
+      if (form.pId && form.wId) {
+          const pName = provinces.find(p => p.id === form.pId)?.full_name;
+          const wName = wards.find(w => w.id === form.wId)?.full_name;
+          addressToSave = `${form.houseNumber}, ${wName}, ${pName}`;
+      }
+      
+      if (addressToSave) {
+          await upsertMyShipping({
+            phone: form.shippingPhone || form.phone,
+            addressLine: addressToSave,
+            city: provinces.find(p => p.id === form.pId)?.full_name || "Vietnam",
+            note: form.note
+          });
+      }
+      toast.success("Cập nhật thành công!", { id: loadId });
+    } catch (e) { toast.error("Lỗi lưu dữ liệu", { id: loadId }); }
   };
 
-  if (loading) return <div className="container section"><div className="loading"></div></div>;
+  if (loading) return <div className="container section text-center"><div className="loading"></div></div>;
 
   return (
-    <div className="container section fade-in">
-      <h1 className="h2">Hồ sơ của tôi</h1>
+    <div className="profile-container fade-in">
+      
+      {/* Header Trang */}
+      <div className="flex-row space-between align-center mb-4">
+         <div>
+            <h1 className="h2" style={{margin:0, color: 'var(--text)'}}>Hồ sơ cá nhân</h1>
+            <p className="muted" style={{margin:0}}>Quản lý thông tin và địa chỉ giao hàng</p>
+         </div>
+         <button onClick={onSubmit} className="btn btn-primary shadow-md">
+            <FaSave /> Lưu thay đổi
+         </button>
+      </div>
 
-      <form className="card" onSubmit={onSubmit} style={{ maxWidth: 800 }}>
-        <div className="form-grid">
-            <div className="full mb-4">
-                <h3 className="h5 border-bottom pb-2 mb-3">Tài khoản</h3>
-                <div className="grid2">
-                    <div><label className="label">Username</label><input className="input bg-gray-100" value={user?.username} disabled /></div>
-                    <div><label className="label">Email</label><input className="input bg-gray-100" value={user?.email} disabled /></div>
-                </div>
-                
-                {/* PHẦN SỐ ĐIỆN THOẠI */}
-                <div style={{marginTop: 12}}>
-                    <label className="label">Số điện thoại</label>
-                    <div className="flex-row gap-2">
-                        <input 
-                            className={`input ${user?.isPhoneVerified ? "text-green-600 fw-bold" : ""}`}
-                            name="phone"
-                            value={form.phone}
-                            onChange={onChange}
-                            placeholder="09..."
-                        />
-                        {user?.isPhoneVerified && user.phone === form.phone ? (
-                            <button type="button" className="btn btn-outline text-green-600" disabled>✓ Đã xác thực</button>
-                        ) : (
-                            <button type="button" className="btn btn-primary" onClick={() => setModalOpen(true)}>Xác thực</button>
-                        )}
-                    </div>
+      <div className="grid-2x2-balanced">
+        
+        {/* 1. TÀI KHOẢN (TRÁI TRÊN) */}
+        <div className="profile-card">
+            <h3 className="flex-row gap-2"><FaUser className="text-blue-600"/> Thông tin tài khoản</h3>
+            
+            <div className="field mb-3">
+                <label className="label">Username / Email</label>
+                <div className="input-group">
+                    <input className="input" value={user?.username || user?.email} disabled />
+                    {user?.isEmailVerified ? 
+                       <span className="addon success" title="Email đã xác thực">✓ Email</span> : 
+                       <button onClick={()=>setEmailModalOpen(true)} className="addon btn-warning">Verify Email</button>
+                    }
                 </div>
             </div>
 
-            {/* PHẦN PROFILE (Chiều cao, cân nặng...) - Giữ nguyên code cũ của bạn */}
-            {/* ... */}
+            <div className="field mb-3">
+                <label className="label">Số điện thoại</label>
+                <div className="input-group">
+                    <input className="input" value={form.phone} disabled placeholder="Chưa có SĐT" />
+                    {user?.isPhoneVerified ? 
+                       <span className="addon success">✓ Verified</span> : 
+                       <button onClick={()=>setPhoneModalOpen(true)} className="addon btn-primary">Verify Phone</button>
+                    }
+                </div>
+            </div>
+
+            <div className="grid2">
+                <div className="field">
+                    <label className="label">Họ tên</label>
+                    <input className="input" name="fullName" value={form.fullName} onChange={onChange} />
+                </div>
+                <div className="field">
+                    <label className="label">Ngày sinh</label>
+                    <input type="date" className="input" name="birthDate" value={form.birthDate} onChange={onChange} />
+                </div>
+            </div>
         </div>
 
-        <div className="mt-4 pt-3 border-top flex-row justify-end">
-          <button className="btn btn-primary" type="submit">Lưu thay đổi</button>
+        {/* 2. SỨC KHỎE (PHẢI TRÊN) */}
+        <div className="profile-card">
+            <h3 className="flex-row gap-2"><FaHeartbeat className="text-red-500"/> Chỉ số sức khỏe</h3>
+            <div className="grid2 mb-3">
+                <div className="field">
+                    <label className="label">Chiều cao (cm)</label>
+                    <input type="number" className="input" name="heightCm" value={form.heightCm} onChange={onChange} />
+                </div>
+                <div className="field">
+                    <label className="label">Cân nặng (kg)</label>
+                    <input type="number" className="input" name="weightKg" value={form.weightKg} onChange={onChange} />
+                </div>
+            </div>
+            <div className="field mb-3">
+                <label className="label">Mức độ vận động</label>
+                <select className="select" name="activityLevel" value={form.activityLevel} onChange={onChange}>
+                    <option value="SEDENTARY">Ít vận động (Văn phòng)</option>
+                    <option value="LIGHT">Nhẹ (1-3 buổi/tuần)</option>
+                    <option value="MODERATE">Vừa (3-5 buổi/tuần)</option>
+                    <option value="ACTIVE">Năng động (6-7 buổi)</option>
+                </select>
+            </div>
+            <div className="field">
+                <label className="label">Target Calories / ngày</label>
+                <input type="number" className="input" name="targetCalories" value={form.targetCalories} onChange={onChange} />
+            </div>
         </div>
-      </form>
-      
-      <PhoneVerifyModal 
-         isOpen={modalOpen} 
-         onClose={() => setModalOpen(false)} 
-         phoneNumber={form.phone}
-         onSuccess={onVerifySuccess}
-      />
+
+        {/* 3. GIAO HÀNG (TRÁI DƯỚI - API) */}
+        <div className="profile-card">
+            <h3 className="flex-row gap-2"><FaMapMarkedAlt className="text-orange-600"/> Địa chỉ giao hàng</h3>
+            
+            <div className="field mb-3">
+                <label className="label">SĐT Nhận hàng</label>
+                <input className="input" name="shippingPhone" value={form.shippingPhone} onChange={onChange} placeholder="Nhập SĐT người nhận..." />
+            </div>
+
+            <div className="grid2 mb-3">
+                <div className="field">
+                    <label className="label">Tỉnh / Thành phố</label>
+                    <select className="select" name="pId" value={form.pId} onChange={onChange}>
+                        <option value="">-- Chọn Tỉnh --</option>
+                        {provinces.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                    </select>
+                </div>
+                <div className="field">
+                    <label className="label">Phường / Xã</label>
+                    <select className="select" name="wId" value={form.wId} onChange={onChange} disabled={!form.pId}>
+                        <option value="">-- Chọn Phường --</option>
+                        {wards.map(w => <option key={w.id} value={w.id}>{w.full_name}</option>)}
+                    </select>
+                </div>
+            </div>
+
+            <div className="field">
+                <label className="label">Số nhà, Tên đường</label>
+                <textarea className="input" rows="2" name="houseNumber" value={form.houseNumber} onChange={onChange} 
+                  placeholder={!form.pId ? "Địa chỉ hiện tại..." : "VD: 123 Nguyễn Huệ..."} />
+            </div>
+        </div>
+
+        {/* 4. CHẾ ĐỘ ĂN (PHẢI DƯỚI) */}
+        <div className="profile-card">
+            <h3 className="flex-row gap-2"><FaUtensils className="text-green-600"/> Chế độ ăn uống</h3>
+            <div className="field mb-3">
+                <label className="label">Sở thích / Diet</label>
+                <input className="input" name="dietaryPreference" value={form.dietaryPreference} onChange={onChange} placeholder="VD: Eat Clean, Keto..." />
+            </div>
+            <div className="field">
+                <label className="label">Dị ứng thực phẩm</label>
+                <textarea className="input" rows="3" name="allergies" value={form.allergies} onChange={onChange} placeholder="VD: Đậu phộng, Hải sản..." />
+            </div>
+        </div>
+
+      </div>
+
+      {/* Modals */}
+      <PhoneVerifyModal isOpen={phoneModalOpen} onClose={() => setPhoneModalOpen(false)} phoneNumber={form.phone} onSuccess={(u)=>{setUser(u); setForm(p=>({...p, phone: u.phone}))}} />
+      <EmailVerifyModal isOpen={emailModalOpen} onClose={() => setEmailModalOpen(false)} email={user?.email} onSuccess={(u)=>setUser(u)} />
     </div>
   );
 }

@@ -3,12 +3,16 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../stores/auth.js";
 import { getMyCart } from "../api/cart.js";
 import { useCart } from "../stores/cart.js";
-import { FaBars, FaTimes, FaSignOutAlt, FaShoppingCart, FaUser, FaUserCog } from "react-icons/fa";
+// Thêm FaSearch vào import
+import { FaBars, FaTimes, FaSignOutAlt, FaShoppingCart, FaUser, FaUserCog, FaSearch } from "react-icons/fa";
 
 export default function SiteHeader() {
   const { token, logout, isAdmin } = useAuth();
   const { count, setCount } = useCart();
   const [menuOpen, setMenuOpen] = useState(false);
+  
+  // State cho thanh tìm kiếm
+  const [keyword, setKeyword] = useState("");
 
   const location = useLocation();
   const pathname = location.pathname;
@@ -40,6 +44,15 @@ export default function SiteHeader() {
     nav("/admin/login");
   };
 
+  // Xử lý tìm kiếm
+  const handleSearch = (e) => {
+    e.preventDefault();
+    if (keyword.trim()) {
+      nav(`/menu?q=${encodeURIComponent(keyword)}`);
+      setKeyword(""); // Reset ô tìm kiếm sau khi submit
+    }
+  };
+
   return (
     <header className="site-header">
       <div className="container header-inner">
@@ -52,9 +65,23 @@ export default function SiteHeader() {
           {menuOpen ? <FaTimes /> : <FaBars />}
         </button>
 
-        <div className="logo" onClick={() => nav("/")} style={{cursor: 'pointer'}}>
+        {/* Logo */}
+        <div className="logo" onClick={() => nav("/")} style={{cursor: 'pointer', marginRight: 20}}>
           Food<span>App</span>
         </div>
+
+        {/* --- SEARCH BAR (MỚI) --- */}
+        <form className="desktop-only search-bar-header" onSubmit={handleSearch}>
+            <input 
+                type="text" 
+                placeholder="Bạn muốn ăn gì hôm nay?..." 
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+            />
+            <button type="button" onClick={handleSearch} aria-label="Tìm kiếm">
+                <FaSearch />
+            </button>
+        </form>
 
         {/* Navigation Menu */}
         <nav className={`nav ${menuOpen ? "is-open" : ""}`}>
@@ -79,9 +106,8 @@ export default function SiteHeader() {
           </div>
         </nav>
 
-        {/* Right Actions (Icon đẹp hơn ở đây) */}
+        {/* Right Actions */}
         <div className="header-cta">
-          
           {/* 1. Icon Giỏ hàng */}
           <Link to="/checkout" className="header-icon-btn" title="Giỏ hàng">
             <FaShoppingCart />
@@ -117,7 +143,7 @@ export default function SiteHeader() {
         </div>
       </div>
       
-      {/* Overlay */}
+      {/* Overlay cho mobile */}
       {menuOpen && (
         <div 
             style={{position: 'fixed', inset: 0, top: 64, background: 'rgba(0,0,0,0.5)', zIndex: 29}}

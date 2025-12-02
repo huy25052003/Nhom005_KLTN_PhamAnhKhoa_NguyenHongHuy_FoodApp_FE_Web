@@ -4,7 +4,8 @@ import { auth } from "../lib/firebase";
 import { verifyPhoneFirebase } from "../api/account";
 import toast from "react-hot-toast";
 
-export default function PhoneVerifyModal({ isOpen, onClose, phoneNumber, onSuccess }) {
+// Thêm 'mode' vào props (dòng dưới)
+export default function PhoneVerifyModal({ isOpen, onClose, phoneNumber, onSuccess, mode }) {
   const [step, setStep] = useState("SEND");
   const [otp, setOtp] = useState("");
   const [confirmObj, setConfirmObj] = useState(null);
@@ -27,9 +28,10 @@ export default function PhoneVerifyModal({ isOpen, onClose, phoneNumber, onSucce
           'size': 'invisible',
         });
       }
+      // Xử lý format sđt (+84...)
       const formatPhone = phoneNumber.startsWith("0") 
         ? "+84" + phoneNumber.slice(1) 
-        : "+84" + phoneNumber;
+        : (phoneNumber.startsWith("+") ? phoneNumber : "+84" + phoneNumber);
 
       const confirmation = await signInWithPhoneNumber(auth, formatPhone, window.recaptchaVerifier);
       setConfirmObj(confirmation);
@@ -37,7 +39,7 @@ export default function PhoneVerifyModal({ isOpen, onClose, phoneNumber, onSucce
       toast.success(`Đã gửi mã đến ${phoneNumber}`);
     } catch (error) {
       console.error(error);
-      toast.error("Lỗi gửi SMS: " + error.message);
+      toast.error("Lỗi gửi SMS: " + (error.message || "Vui lòng thử lại"));
       if(window.recaptchaVerifier) window.recaptchaVerifier.clear();
     } finally {
       setLoading(false);
@@ -52,13 +54,14 @@ export default function PhoneVerifyModal({ isOpen, onClose, phoneNumber, onSucce
       const res = await confirmObj.confirm(otp);
       const token = await res.user.getIdToken();
       
+      // Nếu mode là GET_TOKEN (dùng cho Quên mật khẩu), trả về token ngay
       if (mode === "GET_TOKEN") {
-          onSuccess(token); // Trả về token string
+          onSuccess(token); 
           onClose();
           return;
       }
       
-      // 2. Gửi token về Backend để lưu
+      // Mặc định: Gửi token về Backend để verify tài khoản (Trang Account)
       const updatedUser = await verifyPhoneFirebase(token);
       
       toast.success("Xác thực thành công!");

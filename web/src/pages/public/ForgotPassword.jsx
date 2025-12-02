@@ -20,6 +20,7 @@ export default function ForgotPasswordPage() {
 
   // Chung
   const [newPass, setNewPass] = useState("");
+  const [confirmPass, setConfirmPass] = useState(""); // <--- 1. Thêm State Confirm Pass
   const [loading, setLoading] = useState(false);
 
   // -- XỬ LÝ EMAIL --
@@ -37,6 +38,13 @@ export default function ForgotPasswordPage() {
 
   async function onResetEmail(e) {
     e.preventDefault();
+    
+    // <--- 2. Validate Khớp Mật Khẩu (Email Form)
+    if (newPass !== confirmPass) {
+        toast.error("Mật khẩu nhập lại không khớp!");
+        return;
+    }
+
     setLoading(true);
     try {
       await resetPasswordEmail(email, otp, newPass);
@@ -49,12 +57,19 @@ export default function ForgotPasswordPage() {
 
   // -- XỬ LÝ PHONE --
   function onPhoneVerified(token) {
-    setFirebaseToken(token); // Lưu token firebase
+    setFirebaseToken(token);
     toast.success("Xác thực SĐT thành công. Hãy nhập mật khẩu mới.");
   }
 
   async function onResetPhone(e) {
     e.preventDefault();
+
+    // <--- 2. Validate Khớp Mật Khẩu (Phone Form)
+    if (newPass !== confirmPass) {
+        toast.error("Mật khẩu nhập lại không khớp!");
+        return;
+    }
+
     setLoading(true);
     try {
       await resetPasswordPhone(firebaseToken, newPass);
@@ -95,8 +110,14 @@ export default function ForgotPasswordPage() {
               <div className="muted text-center">Mã đã gửi tới <b>{email}</b></div>
               <input className="input text-center" placeholder="Mã OTP 6 số" maxLength={6} required
                      value={otp} onChange={e => setOtp(e.target.value)} style={{letterSpacing: 4, fontSize:'1.2rem'}} />
+              
               <input className="input" placeholder="Mật khẩu mới" type="password" required
                      value={newPass} onChange={e => setNewPass(e.target.value)} />
+              
+              {/* <--- 3. Input Confirm Password (Email) */}
+              <input className="input" placeholder="Nhập lại mật khẩu" type="password" required
+                     value={confirmPass} onChange={e => setConfirmPass(e.target.value)} />
+
               <button className="btn btn-primary w-full" disabled={loading}>
                 {loading ? "Đang xử lý..." : "Đổi mật khẩu"}
               </button>
@@ -118,8 +139,14 @@ export default function ForgotPasswordPage() {
           ) : (
             <form onSubmit={onResetPhone} className="vstack gap-3">
                <div className="text-center text-green-600 fw-bold">✓ SĐT đã xác thực: {phone}</div>
+               
                <input className="input" placeholder="Mật khẩu mới" type="password" required
                       value={newPass} onChange={e => setNewPass(e.target.value)} />
+               
+               {/* <--- 3. Input Confirm Password (Phone) */}
+               <input className="input" placeholder="Nhập lại mật khẩu" type="password" required
+                      value={confirmPass} onChange={e => setConfirmPass(e.target.value)} />
+
                <button className="btn btn-primary w-full" disabled={loading}>
                  {loading ? "Đang xử lý..." : "Đổi mật khẩu"}
                </button>
