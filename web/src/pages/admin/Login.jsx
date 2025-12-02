@@ -112,7 +112,7 @@ export default function LoginPage() {
           
           {/* Links */}
           <div className="flex-row space-between" style={{fontSize: '0.85rem'}}>
-             <Link to="#" className="text-blue-600" style={{textDecoration: 'none'}}>Quên mật khẩu?</Link>
+             <Link to="/forgot-password" className="text-blue-600" style={{textDecoration: 'none'}}>Quên mật khẩu?</Link>
              <Link to="/login-phone" className="text-blue-600" style={{textDecoration: 'none'}}>Đăng nhập bằng SMS</Link>
           </div>
 

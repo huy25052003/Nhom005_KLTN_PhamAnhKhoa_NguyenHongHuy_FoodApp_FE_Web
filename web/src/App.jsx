@@ -31,6 +31,7 @@ import KitchenLayout from "./component/KitchenLayout.jsx";
 import AdminChatPage from "./pages/admin/AdminChat.jsx";
 import AdminPromotionsPage from "./pages/admin/Promotions.jsx";
 import LoginPhone from "./pages/public/LoginPhone.jsx";
+import ForgotPasswordPage from "./pages/public/ForgotPassword.jsx";
 
 export default function App() {
   return (
@@ -86,6 +87,7 @@ export default function App() {
       </Route>
       <Route path="/admin/login" element={<Login />} />
       <Route path="/login-phone" element={<LoginPhone />} />
+      <Route path="/admin/forgot-password" element={<ForgotPasswordPage />} />
       <Route
         path="/admin"
         element={

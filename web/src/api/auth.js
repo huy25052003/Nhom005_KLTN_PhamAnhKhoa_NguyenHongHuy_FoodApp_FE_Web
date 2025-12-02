@@ -38,3 +38,18 @@ function handleTokenResponse(res) {
   if (!token) return { accessToken: null };
   return { accessToken: token };
 }
+
+export async function requestForgotPassword(email) {
+  const res = await http.post("auth/forgot-password/request", { email });
+  return res.data;
+}
+
+export async function resetPasswordEmail(email, code, newPassword) {
+  const res = await http.post("auth/forgot-password/reset", { email, code, newPassword });
+  return res.data;
+}
+
+export async function resetPasswordPhone(firebaseToken, newPassword) {
+  const res = await http.post("auth/forgot-password/phone", { token: firebaseToken, newPassword });
+  return res.data;
+}

@@ -52,6 +52,12 @@ export default function PhoneVerifyModal({ isOpen, onClose, phoneNumber, onSucce
       const res = await confirmObj.confirm(otp);
       const token = await res.user.getIdToken();
       
+      if (mode === "GET_TOKEN") {
+          onSuccess(token); // Trả về token string
+          onClose();
+          return;
+      }
+      
       // 2. Gửi token về Backend để lưu
       const updatedUser = await verifyPhoneFirebase(token);
       
