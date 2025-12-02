@@ -1150,3 +1150,14 @@ body {
 }
 .input-group .addon.btn-primary { background: var(--primary); color: #fff; border-color: var(--primary); }
 .input-group .addon.btn-warning { background: #fff7ed; color: #ea580c; border-color: #fed7aa; }
+
+.skeleton-loader {
+  background-color: #e2e8f0;
+  background-image: linear-gradient(90deg, #e2e8f0 0px, #f1f5f9 40px, #e2e8f0 80px);
+  background-size: 200px 100%;
+  animation: skeleton-loading 1.5s infinite linear;
+}
+@keyframes skeleton-loading {
+  0% { background-position: -200px 0; }
+  100% { background-position: calc(200px + 100%) 0; }
+}
