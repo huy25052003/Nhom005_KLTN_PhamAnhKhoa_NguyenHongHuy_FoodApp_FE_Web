@@ -3,7 +3,8 @@ import { getOrders, getOrder, updateOrderStatus } from "../../api/orders.js";
 import { Link } from 'react-router-dom';
 import toast from "react-hot-toast";
 
-const STATUS_LIST = ["PENDING","CONFIRMED","PREPARING","SHIPPING","COMPLETED","CANCELED"];
+// SỬA: Đồng bộ chuẩn với Backend (DELIVERING, DONE, CANCELLED)
+const STATUS_LIST = ["PENDING","CONFIRMED","PREPARING","DELIVERING","DONE","CANCELLED"];
 const PAGE_SIZES = [10, 20, 50];
 
 const formatVND = (n) => (Number(n || 0)).toLocaleString("vi-VN") + " đ";
@@ -23,12 +24,13 @@ const calcTotal = (o) => {
   }, 0);
 };
 
+// SỬA: Logic chuyển trạng thái tiếp theo
 function nextStatuses(current) {
   switch ((current || "").toUpperCase()) {
-    case "PENDING":    return ["CONFIRMED", "CANCELED"];
-    case "CONFIRMED":  return ["PREPARING", "CANCELED"];
-    case "PREPARING":  return ["SHIPPING"];
-    case "SHIPPING":   return ["COMPLETED"];
+    case "PENDING":    return ["CONFIRMED", "CANCELLED"];
+    case "CONFIRMED":  return ["PREPARING", "CANCELLED"];
+    case "PREPARING":  return ["DELIVERING"]; // Sửa SHIPPING -> DELIVERING
+    case "DELIVERING": return ["DONE"];       // Sửa COMPLETED -> DONE
     default:           return [];
   }
 }
@@ -149,7 +151,9 @@ export default function OrdersPage() {
                   {nextStatuses(o.status).map(ns => (
                     <button key={ns} className="btn btn-sm btn-primary" style={{marginLeft: 4}}
                             disabled={updating} onClick={()=> doUpdateStatus(o.id, ns)}>
-                      {ns === 'CONFIRMED' ? 'Duyệt' : ns}
+                      {ns === 'CONFIRMED' ? 'Duyệt' : 
+                       ns === 'DELIVERING' ? 'Giao hàng' : // Sửa Label
+                       ns === 'DONE' ? 'Hoàn tất' : ns}    {/* Sửa Label */}
                     </button>
                   ))}
                 </td>
@@ -192,7 +196,9 @@ export default function OrdersPage() {
               {nextStatuses(o.status).map(ns => (
                 <button key={ns} className="btn btn-sm btn-primary"
                         disabled={updating} onClick={()=> doUpdateStatus(o.id, ns)}>
-                  {ns === 'CONFIRMED' ? 'Duyệt đơn' : ns}
+                   {ns === 'CONFIRMED' ? 'Duyệt' : 
+                    ns === 'DELIVERING' ? 'Giao' : 
+                    ns === 'DONE' ? 'Xong' : ns}
                 </button>
               ))}
             </div>
@@ -206,6 +212,7 @@ export default function OrdersPage() {
         <button className="btn" disabled={page>=Math.max(1, data.totalPages)-1} onClick={()=> setPage(p=>p+1)}>Sau →</button>
       </div>
 
+      {/* MODAL CHI TIẾT */}
       {viewing && (
         <div className="modal-backdrop" onClick={(e)=>{ if(e.target===e.currentTarget) setViewing(null); }}>
           <div className="modal">

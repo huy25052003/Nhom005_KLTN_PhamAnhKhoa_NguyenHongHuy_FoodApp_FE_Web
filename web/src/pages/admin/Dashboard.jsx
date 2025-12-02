@@ -5,15 +5,14 @@ import { getOrders, updateOrderStatus } from "../../api/orders";
 import { useAuth } from "../../stores/auth";
 import { Link } from "react-router-dom";
 
+// SỬA: Mapping màu sắc cho các trạng thái mới
 const STATUS_COLORS = {
   PENDING: "badge pending",
   CONFIRMED: "badge confirmed",
   PREPARING: "badge preparing",
-  DELIVERING: "badge delivering",
-  DONE: "badge done",
-  COMPLETED: "badge done",
-  CANCELED: "badge cancelled",
-  CANCELLED: "badge cancelled",
+  DELIVERING: "badge delivering", // Sửa key SHIPPING -> DELIVERING
+  DONE: "badge done",             // Sửa key COMPLETED -> DONE
+  CANCELLED: "badge cancelled",   // Sửa key CANCELED -> CANCELLED
 };
 
 const formatVND = (n) => (n ?? 0).toLocaleString("vi-VN") + " đ";
@@ -22,10 +21,11 @@ const formatDate = (d) => {
   try { return new Date(d).toLocaleString("vi-VN"); } catch { return String(d); }
 };
 
+// SỬA: Logic chuyển trạng thái tiếp theo
 function nextStatuses(current) {
   switch ((current || "").toUpperCase()) {
-    case "PENDING":    return ["CONFIRMED", "CANCELED"];
-    case "CONFIRMED":  return ["PREPARING", "CANCELED"];
+    case "PENDING":    return ["CONFIRMED", "CANCELLED"];
+    case "CONFIRMED":  return ["PREPARING", "CANCELLED"];
     case "PREPARING":  return ["DELIVERING"];
     case "DELIVERING": return ["DONE"];
     default:           return [];
@@ -39,11 +39,6 @@ export default function Dashboard() {
   const { data: productsData, isLoading: loadingProducts } = useQuery({
     queryKey: ["products", "all"],
     queryFn: getAllProducts,
-  });
-
-  const { data: firstPageProductsData } = useQuery({
-    queryKey: ["products", { page: 0, size: 10 }],
-    queryFn: () => getAllProducts(),
   });
 
   const { data: ordersData, isLoading: loadingOrders } = useQuery({
@@ -137,19 +132,20 @@ export default function Dashboard() {
                    {nextStatuses(o.status).map(ns => (
                      <button
                        key={ns}
-                       className={`btn ${ns === 'CANCELED' ? 'btn-danger' : 'btn-primary'}`}
+                       className={`btn btn-sm ${ns === 'CANCELLED' ? 'btn-danger' : 'btn-primary'}`}
                        disabled={savingStatus}
                        onClick={() => mutateStatus({ id: o.id, status: ns })}
                        style={{ marginLeft: '6px' }}
                       >
+                       {/* SỬA LABEL HIỂN THỊ */}
                        {ns === 'CONFIRMED' ? 'Xác nhận' :
                         ns === 'PREPARING' ? 'Chuẩn bị' :
                         ns === 'DELIVERING' ? 'Giao hàng' :
                         ns === 'DONE' ? 'Hoàn tất' :
-                        ns === 'CANCELED' ? 'Hủy đơn' : ns}
+                        ns === 'CANCELLED' ? 'Hủy đơn' : ns}
                      </button>
                    ))}
-                   <Link to={`/admin/orders/${o.id}/invoice`} target="_blank" className="btn btn-ghost" style={{ marginLeft: '6px' }}>Xem/In</Link>
+                   <Link to={`/admin/orders/${o.id}/invoice`} target="_blank" className="btn btn-ghost btn-sm" style={{ marginLeft: '6px' }}>Xem</Link>
                 </td>
               </tr>
             )) : (

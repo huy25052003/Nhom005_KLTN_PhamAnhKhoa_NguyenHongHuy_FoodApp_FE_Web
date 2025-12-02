@@ -146,7 +146,7 @@ body {
 .badge.preparing, .badge.PREPARING { background: #ecfeff; color: #155e75; border-color:#a5f3fc; }
 .badge.delivering, .badge.SHIPPING, .badge.DELIVERING { background: #f0fdf4; color: #166534; border-color:#bbf7d0; }
 .badge.done, .badge.DONE, .badge.COMPLETED { background: #f9fafb; color: #374151; border-color:#e5e7eb; }
-.badge.cancelled, .badge.canceled, .badge.CANCELED { background: #fef2f2; color: #991b1b; border-color:#fecaca; }
+.badge.cancelled, .badge.canceled, .badge.CANCELLED { background: #fef2f2; color: #991b1b; border-color:#fecaca; }
 .badge-primary { background:rgba(34,197,94,.12); color:var(--primary); border:1px solid rgba(34,197,94,.25) }
 
 /* Typography & Grids */
