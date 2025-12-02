@@ -6,8 +6,8 @@ import SockJS from "sockjs-client";
 import { Client } from "@stomp/stompjs";
 import { useAuth } from "../../stores/auth.js";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080/api";
-const WS_URL = API_BASE_URL.replace("/api", "") + "/ws";
+// Lấy trực tiếp từ env
+const WS_URL = import.meta.env.VITE_WS_URL;
 
 export default function KitchenDashboard() {
   const qc = useQueryClient();
@@ -28,18 +28,16 @@ export default function KitchenDashboard() {
     onError: (e) => alert(e?.response?.data?.message || "Lỗi cập nhật"),
   });
 
-  // 3. Socket Listener (Khớp với BE hiện tại)
+  // 3. Socket Listener
   useEffect(() => {
     const client = new Client({
       webSocketFactory: () => new SockJS(WS_URL),
       connectHeaders: { Authorization: `Bearer ${token}` },
       onConnect: () => {
-        // Topic 1: Đơn mới (CONFIRMED) từ NotificationService
         client.subscribe("/topic/kitchen/new-order", () => {
            qc.invalidateQueries(["kitchenOrders"]); 
         });
         
-        // Topic 2: Cập nhật trạng thái món (UPDATE) từ OrderService
         client.subscribe("/topic/kitchen/update", () => {
            qc.invalidateQueries(["kitchenOrders"]); 
         });
@@ -50,7 +48,7 @@ export default function KitchenDashboard() {
     return () => client.deactivate();
   }, [token, qc]);
 
-  // 4. Logic hiển thị (như cũ)
+  // 4. Logic hiển thị
   const { aggregated, displayOrders } = useMemo(() => {
     const aggMap = {};
     const activeOrders = [];

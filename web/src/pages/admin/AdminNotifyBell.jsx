@@ -4,14 +4,13 @@ import SockJS from "sockjs-client";
 import { Client } from "@stomp/stompjs";
 import { listNotifications, unreadCount, markRead, markReadAll } from "../../api/notifications.js";
 import { FaBell, FaSyncAlt, FaCheckDouble } from "react-icons/fa"; 
-import { useAuth } from "../../stores/auth"; // <--- 1. THÊM IMPORT NÀY
+import { useAuth } from "../../stores/auth";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8080";
-const WS_URL = (import.meta.env.VITE_WS_URL || `${API_BASE}/ws`).replace(/\/+$/, "");
+// Lấy trực tiếp từ env
+const WS_URL = import.meta.env.VITE_WS_URL;
 
 const fmtVND = (n) => (Number(n || 0)).toLocaleString("vi-VN") + " đ";
 
-// ... (Giữ nguyên hàm normalizeItem) ...
 function normalizeItem(raw) {
   if (raw && (raw.title || raw.message)) {
     return {
@@ -48,7 +47,7 @@ function normalizeItem(raw) {
 }
 
 export default function AdminNotifyBell() {
-  const { token } = useAuth(); // <--- 2. LẤY TOKEN TỪ STORE
+  const { token } = useAuth();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState([]);
   const [unread, setUnread] = useState(0);
@@ -73,7 +72,6 @@ export default function AdminNotifyBell() {
     } catch {}
   }
 
-  // Click outside để đóng dropdown
   useEffect(() => {
     function handleClickOutside(event) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -84,38 +82,29 @@ export default function AdminNotifyBell() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Kết nối Socket
   useEffect(() => {
-    if (!token) return; // Không có token thì không connect
+    if (!token) return;
 
     load();
 
     const client = new Client({
       webSocketFactory: () => new SockJS(WS_URL),
-      // 👇 3. QUAN TRỌNG: Gửi token trong header để Backend xác thực
-      connectHeaders: { 
-        Authorization: `Bearer ${token}` 
-      },
+      connectHeaders: { Authorization: `Bearer ${token}` },
       reconnectDelay: 3000,
       debug: () => {},
     });
 
     client.onConnect = () => {
-      // Nghe thông báo đơn hàng mới
       client.subscribe("/topic/admin/orders", (frame) => {
         try {
           const raw = JSON.parse(frame.body);
           const n = normalizeItem(raw);
           setItems((prev) => [n, ...(prev ?? [])].slice(0, 100));
           setUnread((u) => Math.max(0, (u ?? 0) + 1));
-
-          audioRef?.play().catch(error => {
-              // console.warn("Autoplay prevented");
-          });
+          audioRef?.play().catch(() => {});
         } catch {}
       });
 
-      // Nghe số lượng chưa đọc (nếu có update từ nơi khác)
       client.subscribe("/topic/admin/notification-count", (frame) => {
         try {
           const n = JSON.parse(frame.body);
@@ -130,7 +119,7 @@ export default function AdminNotifyBell() {
     return () => {
         if (client) client.deactivate();
     };
-  }, [token, audioRef]); // Thêm token vào dependency
+  }, [token, audioRef]);
 
   async function onMarkRead(id) {
     try {
@@ -191,10 +180,7 @@ export default function AdminNotifyBell() {
 
           <div className="dropdown-body">
             {items.length ? items.map((n) => (
-              <div 
-                key={n.id} 
-                className={`notify-item ${n.readFlag ? 'read' : 'unread'}`}
-              >
+              <div key={n.id} className={`notify-item ${n.readFlag ? 'read' : 'unread'}`}>
                 <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '4px' }}>{n.title}</div>
                 {n.message && <div className="muted small" style={{ lineHeight: '1.3' }}>{n.message}</div>}
                 

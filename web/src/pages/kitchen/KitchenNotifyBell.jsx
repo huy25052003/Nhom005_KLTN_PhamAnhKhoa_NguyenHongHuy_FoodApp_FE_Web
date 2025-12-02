@@ -3,9 +3,8 @@ import SockJS from "sockjs-client";
 import { Client } from "@stomp/stompjs";
 import { useAuth } from "../../stores/auth";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080/api";
-// Loại bỏ /api ở cuối để lấy root URL cho websocket
-const WS_URL = API_BASE_URL.replace("/api", "") + "/ws";
+// Lấy trực tiếp từ env
+const WS_URL = import.meta.env.VITE_WS_URL;
 
 export default function KitchenNotifyBell() {
   const { token } = useAuth();
@@ -14,27 +13,19 @@ export default function KitchenNotifyBell() {
   const audioRef = useRef(null);
 
   useEffect(() => {
-    // Init audio
     audioRef.current = new Audio("/notification.mp3");
 
     const client = new Client({
       webSocketFactory: () => new SockJS(WS_URL),
       connectHeaders: { Authorization: `Bearer ${token}` },
       onConnect: () => {
-        // Nghe topic từ NotificationService.notifyKitchenOfNewOrder
         client.subscribe("/topic/kitchen/new-order", (msg) => {
-          // 1. Tăng số đếm
           setCount(prev => prev + 1);
-          
-          // 2. Rung chuông
           setIsShake(true);
           setTimeout(() => setIsShake(false), 1000);
-
-          // 3. Phát âm thanh
           audioRef.current?.play().catch(() => {});
         });
       },
-      // Tắt log debug để console gọn hơn
       debug: () => {},
     });
 

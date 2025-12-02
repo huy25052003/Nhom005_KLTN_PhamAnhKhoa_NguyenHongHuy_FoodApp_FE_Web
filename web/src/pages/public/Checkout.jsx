@@ -1,13 +1,18 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import toast from "react-hot-toast"; // 1. Import Toast
-import { getCart, updateCartItem, removeCartItem, clearCart } from "../../api/cart.js";
+import toast from "react-hot-toast";
+import { getCart, updateCartItem, removeCartItem } from "../../api/cart.js";
 import { placeOrder } from "../../api/orders.js";
 import { createPaymentLink } from "../../api/payment.js";
 import { getMyShipping } from "../../api/shipping.js";
 import { previewPromotion } from "../../api/promotions.js"; 
 import { useAuth } from "../../stores/auth.js";
 import { useCart } from "../../stores/cart.js";
+
+// Import Components Mới
+import ConfirmModal from "../../component/ConfirmModal.jsx";
+import LazyImage from "../../component/LazyImage.jsx";
+import { FaTrash } from "react-icons/fa";
 
 const fmt = (n) => (Number(n || 0)).toLocaleString("vi-VN") + " đ";
 
@@ -21,7 +26,7 @@ export default function CheckoutPage() {
   const [method, setMethod] = useState("COD");
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
-  const [cartActionLoading, setCartActionLoading] = useState(false); // Tránh spam click
+  const [cartActionLoading, setCartActionLoading] = useState(false);
 
   const [shipping, setShipping] = useState(null);
   
@@ -30,8 +35,11 @@ export default function CheckoutPage() {
   const [discount, setDiscount] = useState(0);
   const [appliedCode, setAppliedCode] = useState(null);
   const [promoMsg, setPromoMsg] = useState(""); 
-  const [promoStatus, setPromoStatus] = useState(""); // 'success' | 'error'
+  const [promoStatus, setPromoStatus] = useState("");
   const [checkingCode, setCheckingCode] = useState(false);
+
+  // --- CONFIRM MODAL STATE ---
+  const [confirmState, setConfirmState] = useState({ isOpen: false, data: null });
 
   const isShippingValid = !!(shipping && shipping.phone && shipping.addressLine);
 
@@ -39,7 +47,7 @@ export default function CheckoutPage() {
     if (!isBackground) setLoading(true);
     try {
       if (!token) {
-        nav(`/admin/login?redirect=${encodeURIComponent(location.pathname + location.search)}`);
+        nav(`/admin/login?redirect=${encodeURIComponent("/checkout")}`);
         return;
       }
       const [c, s] = await Promise.all([
@@ -79,12 +87,10 @@ export default function CheckoutPage() {
 
   async function changeQty(item, delta) {
     if (cartActionLoading) return;
-    
     const currentQty = item?.quantity || 1;
     const stock = item?.product?.stock || 0;
     const next = Math.max(1, currentQty + delta);
 
-    // Check tồn kho phía Client cho nhanh (Backend cũng sẽ check lại)
     if (delta > 0 && next > stock) {
         toast.error(`Sản phẩm này chỉ còn ${stock} món.`);
         return;
@@ -93,9 +99,8 @@ export default function CheckoutPage() {
     setCartActionLoading(true);
     try {
       await updateCartItem(item.id, next);
-      await loadData(true); // Load ngầm để không giật màn hình
+      await loadData(true); 
 
-      // Nếu giỏ hàng thay đổi, phải reset mã giảm giá để tính lại
       if (appliedCode) {
          setAppliedCode(null);
          setDiscount(0);
@@ -110,9 +115,19 @@ export default function CheckoutPage() {
     }
   }
 
-  async function onRemove(item) {
+  // 1. Thay vì confirm() -> Mở Modal
+  function onRemoveClick(item) {
     if (cartActionLoading) return;
-    if (!confirm("Xoá sản phẩm này khỏi đơn hàng?")) return;
+    setConfirmState({
+      isOpen: true,
+      data: item
+    });
+  }
+
+  // 2. Xử lý xóa thật khi bấm Đồng ý
+  async function handleConfirmRemove() {
+    const item = confirmState.data;
+    setConfirmState({ isOpen: false, data: null }); // Đóng modal ngay
 
     setCartActionLoading(true);
     try {
@@ -133,24 +148,16 @@ export default function CheckoutPage() {
     }
   }
 
-  // --- HANDLERS: Promotion ---
-
+  // --- HANDLERS: Promotion & Place Order (Giữ nguyên logic cũ) ---
   async function handleApplyCoupon() {
-    if (!promoCode.trim()) {
-        toast.error("Vui lòng nhập mã giảm giá");
-        return;
-    }
-    setCheckingCode(true);
-    setPromoMsg("");
-    setPromoStatus("");
+    if (!promoCode.trim()) return toast.error("Vui lòng nhập mã giảm giá");
+    setCheckingCode(true); setPromoMsg(""); setPromoStatus("");
 
     try {
-      // Chuẩn bị payload giống Backend yêu cầu
       const payloadItems = items.map(it => ({
         productId: it.product?.id || it.productId,
         quantity: it.quantity
       }));
-      
       const res = await previewPromotion(promoCode, payloadItems);
       
       if (res.discount > 0) {
@@ -160,15 +167,13 @@ export default function CheckoutPage() {
         setPromoStatus("success");
         toast.success(`Đã áp dụng mã: Giảm ${fmt(res.discount)}`);
       } else {
-        setDiscount(0);
-        setAppliedCode(null);
+        setDiscount(0); setAppliedCode(null);
         setPromoMsg(res.message || "Mã không hợp lệ");
         setPromoStatus("error");
         toast.error(res.message || "Mã không hợp lệ");
       }
     } catch (e) {
-      setDiscount(0);
-      setAppliedCode(null);
+      setDiscount(0); setAppliedCode(null);
       const errorMsg = e?.response?.data?.message || "Lỗi kiểm tra mã";
       setPromoMsg(errorMsg);
       setPromoStatus("error");
@@ -178,22 +183,15 @@ export default function CheckoutPage() {
     }
   }
 
-  // --- HANDLERS: Place Order ---
-
   async function handlePlaceOrder() {
-    if (!items.length) { 
-        toast.error("Giỏ hàng trống. Vui lòng thêm sản phẩm."); 
-        return; 
-    }
+    if (!items.length) return toast.error("Giỏ hàng trống."); 
     if (!isShippingValid) {
       toast.error("Vui lòng nhập địa chỉ giao hàng.");
-      // Scroll tới phần địa chỉ
       document.querySelector('.card-shipping')?.scrollIntoView({ behavior: 'smooth' });
       return;
     }
 
     setPlacing(true);
-    // Hiển thị loading toast
     const loadingToast = toast.loading("Đang xử lý đơn hàng...");
 
     try {
@@ -217,21 +215,17 @@ export default function CheckoutPage() {
       };
 
       const order = await placeOrder(requestPayload);
-      
-      toast.dismiss(loadingToast); // Tắt loading
+      toast.dismiss(loadingToast);
 
       if (!order?.id) throw new Error("Lỗi tạo đơn hàng.");
 
-      // 1. COD
       if (order.paymentMethod === "COD") {
         toast.success("Đặt hàng thành công! 🎉");
-        setCount(0); // Reset cart count
-        // Chuyển trang sau 1s để user kịp đọc toast
+        setCount(0);
         setTimeout(() => nav(`/order-success/${order.id}`), 1000);
         return;
       }
 
-      // 2. PayOS
       if (order.paymentMethod === "PAYOS") {
         toast.loading("Đang chuyển sang cổng thanh toán...", { duration: 3000 });
         const payUrl = await createPaymentLink(order.id);
@@ -242,7 +236,6 @@ export default function CheckoutPage() {
 
     } catch (e) {
       toast.dismiss(loadingToast);
-      // Hiển thị lỗi chi tiết từ Backend (ví dụ: Tồn kho không đủ)
       const msg = e?.response?.data?.message || e?.message || "Đặt hàng thất bại";
       toast.error(msg);
     } finally {
@@ -257,7 +250,7 @@ export default function CheckoutPage() {
       <h1 className="h1">Thanh toán</h1>
       <div className="grid2">
         
-        {/* Cột Trái: Giỏ hàng + Mã giảm giá */}
+        {/* Cột Trái */}
         <div className="card card-hover">
           <div className="card-title">Đơn hàng ({items.length} món)</div>
           
@@ -286,12 +279,12 @@ export default function CheckoutPage() {
                         <tr key={it.id}>
                           <td>
                             <Link to={`/products/${p.id}`}>
-                              <div
-                                style={{
-                                  width: 48, height: 48, borderRadius: 8,
-                                  background: `#f4f4f4 url(${p.imageUrl || "/placeholder.jpg"}) center/cover no-repeat`
-                                }}
-                              />
+                               {/* Dùng LazyImage thay img thường */}
+                               <LazyImage
+                                  src={p.imageUrl || "/placeholder.jpg"}
+                                  alt={p.name}
+                                  style={{ width: 48, height: 48, borderRadius: 8 }}
+                               />
                             </Link>
                           </td>
                           <td>
@@ -311,12 +304,12 @@ export default function CheckoutPage() {
                           <td style={{ textAlign: "right" }}>
                             <button 
                                 className="btn btn-danger btn-sm" 
-                                onClick={() => onRemove(it)} 
+                                onClick={() => onRemoveClick(it)} 
                                 disabled={cartActionLoading}
-                                style={{padding:'4px 8px', borderRadius: '50%', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center'}}
+                                style={{padding:'4px 8px', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center'}}
                                 title="Xóa"
                             >
-                                ×
+                                <FaTrash size={12} />
                             </button>
                           </td>
                         </tr>
@@ -326,44 +319,29 @@ export default function CheckoutPage() {
                 </table>
               </div>
 
-              {/* Mã giảm giá */}
+              {/* ... (Phần Mã giảm giá & Tổng tiền giữ nguyên) ... */}
               <div style={{ background: '#f8fafc', padding: 16, borderRadius: 12, marginTop: 16, border: '1px dashed #cbd5e1' }}>
+                {/* ... */}
                 <label style={{ fontSize: '0.9rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: 8 }}>🎟️ Mã khuyến mãi</label>
                 <div style={{ display: 'flex', gap: 8 }}>
                     <input 
                         className={`input ${promoStatus === 'error' ? 'border-red-500' : promoStatus === 'success' ? 'border-green-500' : ''}`}
                         value={promoCode} 
-                        onChange={e => {
-                            setPromoCode(e.target.value.toUpperCase());
-                            if (promoMsg) { setPromoMsg(""); setPromoStatus(""); }
-                        }} 
+                        onChange={e => { setPromoCode(e.target.value.toUpperCase()); if(promoMsg) {setPromoMsg(""); setPromoStatus("");} }} 
                         placeholder="Nhập mã (VD: HELLO2024)"
                         disabled={!!appliedCode || checkingCode}
                         style={{ flex: 1 }}
                         onKeyDown={(e) => e.key === 'Enter' && handleApplyCoupon()}
                     />
                     {appliedCode ? (
-                        <button className="btn btn-danger" onClick={() => { setAppliedCode(null); setDiscount(0); setPromoCode(""); setPromoMsg(""); setPromoStatus(""); }}>
-                            Gỡ bỏ
-                        </button>
+                        <button className="btn btn-danger" onClick={() => { setAppliedCode(null); setDiscount(0); setPromoCode(""); setPromoMsg(""); setPromoStatus(""); }}>Gỡ bỏ</button>
                     ) : (
-                        <button className="btn btn-primary" onClick={handleApplyCoupon} disabled={checkingCode || !promoCode}>
-                            {checkingCode ? "..." : "Áp dụng"}
-                        </button>
+                        <button className="btn btn-primary" onClick={handleApplyCoupon} disabled={checkingCode || !promoCode}>{checkingCode ? "..." : "Áp dụng"}</button>
                     )}
                 </div>
-                {promoMsg && (
-                    <div style={{ 
-                        fontSize: '0.85rem', marginTop: 8, fontWeight: 500,
-                        color: promoStatus === 'success' ? '#16a34a' : '#dc2626',
-                        display: 'flex', alignItems: 'center', gap: 4
-                    }}>
-                        {promoStatus === 'success' ? '✅' : '⚠️'} {promoMsg}
-                    </div>
-                )}
+                {promoMsg && <div style={{ fontSize: '0.85rem', marginTop: 8, fontWeight: 500, color: promoStatus === 'success' ? '#16a34a' : '#dc2626' }}>{promoStatus === 'success' ? '✅' : '⚠️'} {promoMsg}</div>}
               </div>
 
-              {/* Tổng tiền */}
               <div style={{ borderTop: '2px solid #f1f5f9', paddingTop: '1.5rem', marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: 8 }}>
                  <div className="flex-row space-between">
                     <span className="muted" style={{fontSize: '1rem'}}>Tạm tính</span>
@@ -384,7 +362,7 @@ export default function CheckoutPage() {
           )}
         </div>
 
-        {/* Cột Phải: Thông tin & Thanh toán */}
+        {/* Cột Phải: Thông tin & Thanh toán (Giữ nguyên UI) */}
         <div className="card-shipping card card-hover" style={{ height: 'fit-content' }}>
           <div className="card-title">📍 Thông tin giao hàng</div>
           
@@ -393,9 +371,7 @@ export default function CheckoutPage() {
           {!isShippingValid && !loading && (
             <div style={{marginBottom: 16, padding: 16, background: '#fff1f2', borderRadius: 8, border: '1px solid #fecaca'}}>
               <p style={{color: '#991b1b', marginBottom: 8, fontSize: '0.9rem'}}>Bạn chưa có địa chỉ giao hàng.</p>
-              <Link to={`/account/shipping?redirect=${encodeURIComponent("/checkout")}`} className="btn btn-sm btn-primary w-full">
-                + Thêm địa chỉ mới
-              </Link>
+              <Link to={`/account?redirect=${encodeURIComponent("/checkout")}`} className="btn btn-sm btn-primary w-full">+ Thêm địa chỉ mới</Link>
             </div>
           )}
           
@@ -403,18 +379,10 @@ export default function CheckoutPage() {
              <div style={{ marginBottom: 20, padding: 16, background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                   <div style={{ fontWeight: 700, fontSize: '1rem' }}>{shipping.phone}</div>
-                  <Link to={`/account/shipping?redirect=${encodeURIComponent("/checkout")}`} style={{ fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 600, textDecoration: 'none' }}>
-                    Sửa
-                  </Link>
+                  <Link to={`/account?redirect=${encodeURIComponent("/checkout")}`} style={{ fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 600, textDecoration: 'none' }}>Sửa</Link>
               </div>
-              <div style={{ color: '#475569', fontSize: '0.95rem', lineHeight: 1.5 }}>
-                  {shipping.addressLine}, {shipping.city}
-              </div>
-              {shipping.note && (
-                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed #cbd5e1', fontSize: '0.9rem', fontStyle: 'italic', color: '#64748b' }}>
-                      📝 "{shipping.note}"
-                  </div>
-              )}
+              <div style={{ color: '#475569', fontSize: '0.95rem', lineHeight: 1.5 }}>{shipping.addressLine}, {shipping.city}</div>
+              {shipping.note && <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed #cbd5e1', fontSize: '0.9rem', fontStyle: 'italic', color: '#64748b' }}>📝 "{shipping.note}"</div>}
             </div>
           )}
 
@@ -425,17 +393,9 @@ export default function CheckoutPage() {
             <label className="card" style={{ 
                 display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', 
                 border: method === "COD" ? '2px solid var(--primary)' : '1px solid var(--border)', 
-                background: method === "COD" ? '#f0fdf4' : '#fff',
-                padding: 16, transition: 'all 0.2s'
+                background: method === "COD" ? '#f0fdf4' : '#fff', padding: 16 
             }}>
-                <input 
-                    type="radio" 
-                    name="pm" 
-                    value="COD" 
-                    checked={method === "COD"} 
-                    onChange={() => setMethod("COD")} 
-                    style={{ width: 20, height: 20, accentColor: 'var(--primary)' }}
-                />
+                <input type="radio" name="pm" value="COD" checked={method === "COD"} onChange={() => setMethod("COD")} style={{ width: 20, height: 20, accentColor: 'var(--primary)' }} />
                 <div>
                     <div style={{ fontWeight: 700 }}>Thanh toán khi nhận hàng (COD)</div>
                     <div className="muted" style={{ fontSize: '0.85rem' }}>Thanh toán tiền mặt cho shipper</div>
@@ -445,17 +405,9 @@ export default function CheckoutPage() {
             <label className="card" style={{ 
                 display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', 
                 border: method === "PAYOS" ? '2px solid var(--primary)' : '1px solid var(--border)', 
-                background: method === "PAYOS" ? '#f0fdf4' : '#fff',
-                padding: 16, transition: 'all 0.2s'
+                background: method === "PAYOS" ? '#f0fdf4' : '#fff', padding: 16
             }}>
-                <input 
-                    type="radio" 
-                    name="pm" 
-                    value="PAYOS" 
-                    checked={method === "PAYOS"} 
-                    onChange={() => setMethod("PAYOS")} 
-                    style={{ width: 20, height: 20, accentColor: 'var(--primary)' }}
-                />
+                <input type="radio" name="pm" value="PAYOS" checked={method === "PAYOS"} onChange={() => setMethod("PAYOS")} style={{ width: 20, height: 20, accentColor: 'var(--primary)' }} />
                 <div>
                     <div style={{ fontWeight: 700 }}>Thanh toán Online (PayOS)</div>
                     <div className="muted" style={{ fontSize: '0.85rem' }}>Quét mã QR ngân hàng / Ví điện tử</div>
@@ -479,6 +431,17 @@ export default function CheckoutPage() {
           </div>
         </div>
       </div>
+
+      {/* --- MODAL XÁC NHẬN XÓA SẢN PHẨM --- */}
+      <ConfirmModal 
+        isOpen={confirmState.isOpen}
+        title="Xóa sản phẩm?"
+        message={`Bạn có chắc muốn xóa "${confirmState.data?.product?.name}" khỏi đơn hàng?`}
+        confirmText="Xóa"
+        isDanger={true}
+        onConfirm={handleConfirmRemove}
+        onCancel={() => setConfirmState({ isOpen: false, data: null })}
+      />
     </div>
   );
 }

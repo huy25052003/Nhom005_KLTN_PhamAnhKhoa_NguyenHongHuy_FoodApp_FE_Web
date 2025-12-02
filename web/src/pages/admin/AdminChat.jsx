@@ -4,11 +4,11 @@ import { useAuth } from "../../stores/auth";
 import { Client } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080/api";
-const WS_URL = API_BASE_URL.replace("/api", "") + "/ws";
+// Lấy trực tiếp từ env
+const WS_URL = import.meta.env.VITE_WS_URL;
 
 export default function AdminChatPage() {
-  const { token, username } = useAuth(); // username của admin đang login
+  const { token } = useAuth(); 
   const [conversations, setConversations] = useState([]);
   const [selectedConv, setSelectedConv] = useState(null);
   const [msgs, setMsgs] = useState([]);
@@ -16,7 +16,6 @@ export default function AdminChatPage() {
   const stompRef = useRef(null);
   const bottomRef = useRef(null);
 
-  // 1. Tải danh sách hội thoại
   useEffect(() => {
     loadConversations();
   }, []);
@@ -30,11 +29,9 @@ export default function AdminChatPage() {
     }
   }
 
-  // 2. Khi chọn 1 hội thoại -> Tải tin nhắn cũ & Connect Socket
   useEffect(() => {
     if (!selectedConv) return;
     
-    // Ngắt kết nối cũ nếu có
     if (stompRef.current) stompRef.current.deactivate();
 
     (async () => {
@@ -50,7 +47,6 @@ export default function AdminChatPage() {
     };
   }, [selectedConv]);
 
-  // 3. Scroll xuống cuối khi có tin nhắn mới
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [msgs]);
@@ -63,7 +59,6 @@ export default function AdminChatPage() {
         client.subscribe(`/topic/conversation/${convId}`, (frame) => {
           const m = JSON.parse(frame.body);
           setMsgs((prev) => [...prev, m]);
-          // Cập nhật lại list conversations để đưa cái mới nhất lên đầu (optional)
           loadConversations(); 
         });
       },
@@ -75,17 +70,6 @@ export default function AdminChatPage() {
   function handleSend() {
     if (!input.trim() || !selectedConv || !stompRef.current) return;
     
-    // Admin gửi tin: senderId là ID của admin (đã có trong token/auth store hoặc gọi API getMe)
-    // Ở đây ta cần ID số của Admin. 
-    // Cách nhanh nhất: Lấy từ selectedConv.admin.id (nếu mình là admin phụ trách)
-    // Hoặc gọi API getMe() 1 lần lúc mount để lấy ID chính xác.
-    // Giả sử selectedConv.admin.id là đúng người đang login (hoặc logic BE cho phép admin bất kỳ reply)
-    
-    // Lưu ý: Cần user ID chính xác. Để đơn giản, mình giả định BE đã xử lý lấy user từ Token
-    // Nhưng method socket handleWebSocketMessage yêu cầu senderId trong payload.
-    // Tốt nhất component này nên gọi getMe() lúc đầu.
-    
-    // Tạm thời dùng ID admin từ conversation (nếu conversation đã assign cho mình)
     const adminId = selectedConv.admin?.id; 
 
     const payload = {
@@ -104,7 +88,6 @@ export default function AdminChatPage() {
   return (
     <div className="page-admin-chat" style={{ height: 'calc(100vh - 100px)', display: 'grid', gridTemplateColumns: '300px 1fr', gap: 16 }}>
       
-      {/* Sidebar danh sách chat */}
       <div className="card" style={{ padding: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: 12, borderBottom: '1px solid #eee', fontWeight: 700 }}>
           Hội thoại ({conversations.length})
@@ -128,7 +111,6 @@ export default function AdminChatPage() {
         ))}
       </div>
 
-      {/* Khung chat chính */}
       <div className="card" style={{ padding: 0, display: 'flex', flexDirection: 'column' }}>
         {selectedConv ? (
           <>
@@ -138,8 +120,6 @@ export default function AdminChatPage() {
             
             <div style={{ flex: 1, padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
               {msgs.map((m, i) => {
-                // Check xem tin nhắn này của Customer hay Admin
-                // m.sender.id === selectedConv.customer.id => Là khách nhắn
                 const isCustomer = m.sender?.id === selectedConv.customer?.id;
                 return (
                   <div key={i} style={{ 

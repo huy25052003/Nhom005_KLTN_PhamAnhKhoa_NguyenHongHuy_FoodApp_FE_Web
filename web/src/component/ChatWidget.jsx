@@ -6,8 +6,7 @@ import { getMe } from "../api/users";
 import { Client } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080/api";
-const WS_URL = API_BASE_URL.replace("/api", "") + "/ws";
+const WS_URL = import.meta.env.VITE_WS_URL;
 
 export default function ChatWidget() {
   const { token } = useAuth();
@@ -84,12 +83,12 @@ export default function ChatWidget() {
   return (
     <div className="chat-widget card">
       <div className="chat-header">
-        <span>Customer Support</span>
+        <span>Hỗ trợ khách hàng</span>
         <button onClick={close} className="btn-close">×</button>
       </div>
       <div className="chat-body">
         {!token ? (
-          <div className="muted center">Please login to chat.</div>
+          <div className="muted center">Vui lòng đăng nhập để chat.</div>
         ) : (
           msgs.map((m, i) => {
             const msgSenderId = m.sender?.id || m.senderId;
@@ -110,9 +109,9 @@ export default function ChatWidget() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && send()}
-            placeholder="Type a message..."
+            placeholder="Nhập tin nhắn..."
           />
-          <button className="btn btn-primary" onClick={send}>Send</button>
+          <button className="btn btn-primary" onClick={send}>Gửi</button>
         </div>
       )}
       <style>{`
