@@ -410,7 +410,7 @@ body {
 /* Nút bấm thiết kế mới */
 .card-actions {
   display: grid;
-  grid-template-columns: 1fr 48px; /* Nút thêm chiếm phần lớn, nút xem là icon */
+  grid-template-columns: 1fr 1fr; /* SỬA: Chia đều 2 cột thay vì 1fr 48px */
   gap: 10px;
   margin-top: auto;
 }
@@ -420,17 +420,18 @@ body {
   background: var(--primary);
   color: #ffffff;
   border: none;
-  padding: 12px;
+  padding: 10px; /* Giảm padding một chút để gọn */
   border-radius: 12px;
   font-weight: 700;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 4px;
   box-shadow: 0 4px 10px rgba(34, 197, 94, 0.3);
   transition: all 0.2s;
   text-decoration: none !important;
+  white-space: nowrap; /* Không cho xuống dòng */
 }
 
 .card-actions .btn-primary:hover {
@@ -439,7 +440,7 @@ body {
   box-shadow: 0 8px 15px rgba(34, 197, 94, 0.4);
 }
 
-/* Nút Xem chi tiết - Dạng Icon vuông nhẹ nhàng */
+/* Nút Xem chi tiết - Dạng Ghost */
 .card-actions .btn-ghost {
   background: #f1f5f9;
   color: var(--secondary);
@@ -447,10 +448,13 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.2rem;
+  font-size: 0.9rem; /* SỬA: Font chữ nhỏ lại cho đều */
+  font-weight: 600;
   transition: all 0.2s;
   text-decoration: none !important;
   border: 1px solid transparent;
+  padding: 10px; /* Đồng bộ padding */
+  white-space: nowrap;
 }
 
 .card-actions .btn-ghost:hover {
