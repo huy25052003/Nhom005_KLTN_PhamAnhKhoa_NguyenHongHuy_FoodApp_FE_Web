@@ -550,12 +550,13 @@ body {
 .hero-image {
   height: 100%;
   border-radius: 24px;
-  background: linear-gradient(135deg, #dcfce7 0%, #a7f3d0 100%), url("https://images.pexels.com/photos/5737390/pexels-photo-5737390.jpeg?auto=compress&cs=tinysrgb&w=600") center/cover no-repeat;
+  /* SỬA: Dùng rgba để tạo độ trong suốt (0.6) cho phép nhìn xuyên thấu ảnh */
+ background: url("https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=1000&auto=format&fit=crop") center/cover no-repeat;
   border: 2px solid var(--primary-100);
   box-shadow: 0 20px 60px rgba(16, 185, 129, 0.15);
   transition: transform 0.3s ease;
   animation: scaleIn 0.8s ease-out 0.5s forwards;
-  opacity: 0;
+  opacity: 0; /* Lưu ý: Nếu animation không chạy, ảnh sẽ bị ẩn luôn vì dòng này */
 }
 .hero-image:hover {
   transform: translateY(-8px);
