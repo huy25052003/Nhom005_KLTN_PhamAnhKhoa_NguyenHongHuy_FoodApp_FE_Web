@@ -7,6 +7,8 @@ import { toggleFavorite, getFavoriteStat } from "../../api/favorites.js";
 import { useAuth } from "../../stores/auth.js";
 import { useCart } from "../../stores/cart.js";
 import { useChatStore } from "../../stores/chatStore.js";
+import { getRecommendations } from "../../api/recommendations.js";
+import { getMe } from "../../api/users.js";
 // Import icon
 import { 
   FaChevronLeft, FaChevronRight, 
@@ -49,6 +51,23 @@ export default function HomePage() {
   const isDown = useRef(false);
   const startX = useRef(0);
   const scrollLeftPos = useRef(0);
+  const [recommended, setRecommended] = useState([]);
+  const [hasProfile, setHasProfile] = useState(false);
+
+  useEffect(() => {
+    if (!token) return;
+    (async () => {
+      try {
+        const recs = await getRecommendations();
+        if (recs && recs.length > 0) {
+          setRecommended(recs);
+          setHasProfile(true);
+        } else {
+          setHasProfile(false); 
+        }
+      } catch (e) {}
+    })();
+  }, [token]);
 
   useEffect(() => {
     (async () => {
@@ -185,7 +204,80 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+      {token && (
+        <section className="section" style={{ background: '#f0fdf4' }}>
+          <div className="container">
+            <div className="flex-row space-between align-center mb-4">
+              <div>
+                <h2 className="section-title" style={{textAlign: 'left', marginBottom: 8}}>
+                  🥗 Dành riêng cho bạn
+                </h2>
+                <p className="muted">
+                  {hasProfile 
+                    ? "Thực đơn được tính toán dựa trên chỉ số cơ thể (TDEE) của bạn." 
+                    : "Cập nhật chỉ số cơ thể để nhận gợi ý thực đơn chuẩn healthy!"}
+                </p>
+              </div>
+              {!hasProfile && (
+                <Link to="/account" className="btn btn-outline btn-sm">
+                  Cập nhật Hồ sơ ngay →
+                </Link>
+              )}
+            </div>
 
+            {hasProfile && recommended.length > 0 ? (
+              <div className="grid4">
+                {recommended.map((it) => {
+                  // Logic copy từ section Featured để đảm bảo UI đồng bộ
+                  const isFav = !!favMap[it.id];
+                  return (
+                    <div key={it.id} className="card product-card card-hover" style={{ position: "relative" }}>
+                      {/* Nút tim */}
+                      <button type="button" className="icon-heart" onClick={() => onToggleFavorite(it.id)}
+                          style={{
+                            position: "absolute", top: 12, right: 12, width: 36, height: 36, borderRadius: 18,
+                            border: "1px solid #eee", background: "rgba(255,255,255,0.8)",
+                            display: "grid", placeItems: "center", cursor: "pointer", zIndex: 2
+                          }}>
+                          <span style={{ color: isFav ? "crimson" : "#999", fontSize: 18 }}>{isFav ? "♥" : "♡"}</span>
+                      </button>
+
+                      <Link to={`/products/${it.id}`}>
+                          <div className="product-thumb-wrapper">
+                            <img src={it.imageUrl || "/placeholder.jpg"} alt={it.name} 
+                                style={{width:"100%", height:180, objectFit:"cover"}} loading="lazy"/>
+                          </div>
+                      </Link>
+
+                      <div className="product-info">
+                          <div className="flex-row space-between">
+                            <Link to={`/products/${it.id}`} className="product-name">{it.name}</Link>
+                            {/* Tag Calories */}
+                            {it.calories && <span className="badge" style={{background:'#dcfce7', color:'#166534', fontSize:'0.75rem'}}>{it.calories} kcal</span>}
+                          </div>
+                          <div className="product-price">{formatVND(it.price)}</div>
+                      </div>
+
+                      <div className="card-actions">
+                          <button className="btn btn-primary btn-sm" onClick={() => onAdd(it)} disabled={it.stock <= 0}>
+                            {it.stock <= 0 ? "Hết hàng" : "Thêm vào giỏ"}
+                          </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="card text-center py-5" style={{border:'2px dashed #bbf7d0'}}>
+                <div style={{fontSize: '3rem', marginBottom: 16}}>📊</div>
+                <h3 className="h3">Bạn chưa cập nhật thông tin sức khỏe?</h3>
+                <p className="muted mb-3">Hãy cho chúng tôi biết Chiều cao, Cân nặng để tính toán Calo phù hợp nhất.</p>
+                <Link to="/account" className="btn btn-primary">Đi đến Hồ sơ cá nhân</Link>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
       <section className="section fade-in">
         <div className="container">
           <h2 className="section-title">Cách đặt hàng</h2>

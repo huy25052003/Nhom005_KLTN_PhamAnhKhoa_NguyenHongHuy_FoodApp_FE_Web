@@ -4,7 +4,7 @@ import { getProfile, updateProfile, getMe } from "../../api/users";
 import { getMyShipping, upsertMyShipping } from "../../api/shipping";
 import PhoneVerifyModal from "../../component/PhoneVerifyModal";
 import EmailVerifyModal from "../../component/EmailVerifyModal";
-import { FaCheckCircle, FaExclamationTriangle, FaUser, FaHeartbeat, FaUtensils, FaMapMarkedAlt, FaSave } from "react-icons/fa";
+import { FaUser, FaHeartbeat, FaUtensils, FaMapMarkedAlt, FaSave } from "react-icons/fa";
 
 const API_HOST = "https://esgoo.net/api-tinhthanh-new";
 
@@ -14,7 +14,6 @@ export default function AccountProfilePage() {
   const [phoneModalOpen, setPhoneModalOpen] = useState(false);
   const [emailModalOpen, setEmailModalOpen] = useState(false);
 
-  // Address API State
   const [provinces, setProvinces] = useState([]);
   const [wards, setWards] = useState([]);
 
@@ -27,7 +26,6 @@ export default function AccountProfilePage() {
     shippingPhone: "", pId: "", wId: "", houseNumber: "", note: ""
   });
 
-  // Load Data
   useEffect(() => {
     (async () => {
       try {
@@ -41,18 +39,25 @@ export default function AccountProfilePage() {
         if (provRes.error === 0) setProvinces(provRes.data);
         if (userData) {
             setUser(userData);
+            // Ưu tiên lấy SĐT từ user account
             setForm(prev => ({ ...prev, phone: userData.phone || shipping?.phone || "" }));
         }
 
         setForm(prev => ({
             ...prev,
-            ...profile,
+            // Map fullName từ profile vào form
+            fullName: profile?.fullName || "", 
+            birthDate: profile?.birthDate || "",
+            gender: profile?.gender || "MALE",
             heightCm: profile?.heightCm || "",
             weightKg: profile?.weightKg || "",
+            activityLevel: profile?.activityLevel || "MODERATE",
+            dietaryPreference: profile?.dietaryPreference || "",
+            allergies: profile?.allergies || "",
             targetCalories: profile?.targetCalories || "",
             
             shippingPhone: shipping?.phone || userData?.phone || "",
-            houseNumber: shipping?.addressLine || "", // Show địa chỉ cũ dạng text
+            houseNumber: shipping?.addressLine || "",
             note: shipping?.note || ""
         }));
       } catch (e) { toast.error("Lỗi tải dữ liệu"); } 
@@ -60,7 +65,7 @@ export default function AccountProfilePage() {
     })();
   }, []);
 
-  // Fetch Wards
+  // Fetch Wards logic (giữ nguyên)
   useEffect(() => {
     if (!form.pId) { setWards([]); return; }
     fetch(`${API_HOST}/2/${form.pId}.htm`).then(r => r.json()).then(res => {
@@ -75,13 +80,14 @@ export default function AccountProfilePage() {
     const loadId = toast.loading("Đang lưu...");
     try {
       await updateProfile({
-        fullName: form.fullName, birthDate: form.birthDate, gender: form.gender,
+        fullName: form.fullName, // Gửi fullName lên
+        birthDate: form.birthDate, gender: form.gender,
         heightCm: Number(form.heightCm)||null, weightKg: Number(form.weightKg)||null,
         activityLevel: form.activityLevel, dietaryPreference: form.dietaryPreference,
         allergies: form.allergies, targetCalories: Number(form.targetCalories)||null,
       });
 
-      // Logic save shipping
+      // Logic save shipping (giữ nguyên)
       let addressToSave = form.houseNumber;
       if (form.pId && form.wId) {
           const pName = provinces.find(p => p.id === form.pId)?.full_name;
@@ -105,8 +111,6 @@ export default function AccountProfilePage() {
 
   return (
     <div className="profile-container fade-in">
-      
-      {/* Header Trang */}
       <div className="flex-row space-between align-center mb-4">
          <div>
             <h1 className="h2" style={{margin:0, color: 'var(--text)'}}>Hồ sơ cá nhân</h1>
@@ -119,14 +123,16 @@ export default function AccountProfilePage() {
 
       <div className="grid-2x2-balanced">
         
-        {/* 1. TÀI KHOẢN (TRÁI TRÊN) */}
+        {/* 1. TÀI KHOẢN */}
         <div className="profile-card">
             <h3 className="flex-row gap-2"><FaUser className="text-blue-600"/> Thông tin tài khoản</h3>
             
+            {/* --- SỬA Ở ĐÂY: CHỈ HIỂN THỊ EMAIL --- */}
             <div className="field mb-3">
-                <label className="label">Username / Email</label>
+                <label className="label">Email</label>
                 <div className="input-group">
-                    <input className="input" value={user?.username || user?.email} disabled />
+                    {/* Hiển thị email, disable vì không cho sửa trực tiếp */}
+                    <input className="input" value={user?.email} disabled />
                     {user?.isEmailVerified ? 
                        <span className="addon success" title="Email đã xác thực">✓ Email</span> : 
                        <button onClick={()=>setEmailModalOpen(true)} className="addon btn-warning">Verify Email</button>
@@ -148,7 +154,7 @@ export default function AccountProfilePage() {
             <div className="grid2">
                 <div className="field">
                     <label className="label">Họ tên</label>
-                    <input className="input" name="fullName" value={form.fullName} onChange={onChange} />
+                    <input className="input" name="fullName" value={form.fullName} onChange={onChange} placeholder="Nhập họ tên đầy đủ" />
                 </div>
                 <div className="field">
                     <label className="label">Ngày sinh</label>
@@ -157,7 +163,8 @@ export default function AccountProfilePage() {
             </div>
         </div>
 
-        {/* 2. SỨC KHỎE (PHẢI TRÊN) */}
+        {/* ... (Các phần Sức Khỏe, Giao Hàng, Chế Độ Ăn giữ nguyên) ... */}
+        
         <div className="profile-card">
             <h3 className="flex-row gap-2"><FaHeartbeat className="text-red-500"/> Chỉ số sức khỏe</h3>
             <div className="grid2 mb-3">
@@ -185,15 +192,12 @@ export default function AccountProfilePage() {
             </div>
         </div>
 
-        {/* 3. GIAO HÀNG (TRÁI DƯỚI - API) */}
         <div className="profile-card">
             <h3 className="flex-row gap-2"><FaMapMarkedAlt className="text-orange-600"/> Địa chỉ giao hàng</h3>
-            
             <div className="field mb-3">
                 <label className="label">SĐT Nhận hàng</label>
                 <input className="input" name="shippingPhone" value={form.shippingPhone} onChange={onChange} placeholder="Nhập SĐT người nhận..." />
             </div>
-
             <div className="grid2 mb-3">
                 <div className="field">
                     <label className="label">Tỉnh / Thành phố</label>
@@ -210,7 +214,6 @@ export default function AccountProfilePage() {
                     </select>
                 </div>
             </div>
-
             <div className="field">
                 <label className="label">Số nhà, Tên đường</label>
                 <textarea className="input" rows="2" name="houseNumber" value={form.houseNumber} onChange={onChange} 
@@ -218,7 +221,6 @@ export default function AccountProfilePage() {
             </div>
         </div>
 
-        {/* 4. CHẾ ĐỘ ĂN (PHẢI DƯỚI) */}
         <div className="profile-card">
             <h3 className="flex-row gap-2"><FaUtensils className="text-green-600"/> Chế độ ăn uống</h3>
             <div className="field mb-3">
@@ -233,7 +235,6 @@ export default function AccountProfilePage() {
 
       </div>
 
-      {/* Modals */}
       <PhoneVerifyModal isOpen={phoneModalOpen} onClose={() => setPhoneModalOpen(false)} phoneNumber={form.phone} onSuccess={(u)=>{setUser(u); setForm(p=>({...p, phone: u.phone}))}} />
       <EmailVerifyModal isOpen={emailModalOpen} onClose={() => setEmailModalOpen(false)} email={user?.email} onSuccess={(u)=>setUser(u)} />
     </div>
