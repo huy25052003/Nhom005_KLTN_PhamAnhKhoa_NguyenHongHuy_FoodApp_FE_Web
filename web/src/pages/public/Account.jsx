@@ -6,7 +6,8 @@ import PhoneVerifyModal from "../../component/PhoneVerifyModal";
 import EmailVerifyModal from "../../component/EmailVerifyModal";
 import { 
   FaUser, FaHeartbeat, FaMapMarkedAlt, FaSave, 
-  FaMars, FaVenus, FaCalculator, FaBullseye 
+  FaMars, FaVenus, FaCalculator, FaBullseye,
+  FaCrown, FaGift, FaCheckCircle, FaExclamationCircle // Thêm icon
 } from "react-icons/fa";
 
 const API_HOST = "https://esgoo.net/api-tinhthanh-new";
@@ -21,21 +22,41 @@ export default function AccountProfilePage() {
   const [wards, setWards] = useState([]);
 
   const [form, setForm] = useState({
-    // Profile (Đã bỏ diet/allergies)
-    fullName: "", 
-    birthDate: "", 
-    gender: "MALE",
-    heightCm: "", 
-    weightKg: "", 
-    activityLevel: "MODERATE",
-    goal: "MAINTAIN", // Mặc định giữ cân
-    targetCalories: "", 
-    phone: "",
-    // Shipping
+    fullName: "", birthDate: "", gender: "MALE",
+    heightCm: "", weightKg: "", activityLevel: "MODERATE",
+    goal: "MAINTAIN", targetCalories: "", phone: "",
     shippingPhone: "", pId: "", wId: "", houseNumber: "", note: ""
   });
 
-  // --- TÍNH TDEE HIỂN THỊ ---
+  // --- LOGIC HẠNG THÀNH VIÊN (Cập nhật cho CSS Custom) ---
+  const points = user?.points || 0;
+  let rank = "Thành viên Mới";
+  let nextRank = "Bạc";
+  let progress = Math.min(100, (points / 100) * 100);
+  
+  // Thay vì biến 'color', ta dùng biến 'rankClass' để khớp với CSS
+  let rankClass = "rank-bronze"; 
+  let icon = "🌱";
+  let benefit = "Giảm 1% đơn hàng";
+
+  if (points >= 2000) {
+      rank = "Kim Cương"; nextRank = "Max"; progress = 100;
+      rankClass = "rank-diamond"; icon = "💎";
+      benefit = "Giảm 8% đơn hàng";
+  } else if (points >= 500) {
+      rank = "Vàng"; nextRank = "Kim Cương";
+      progress = ((points - 500) / 1500) * 100;
+      rankClass = "rank-gold"; icon = "🥇";
+      benefit = "Giảm 5% đơn hàng";
+  } else if (points >= 100) {
+      rank = "Bạc"; nextRank = "Vàng";
+      progress = ((points - 100) / 400) * 100;
+      rankClass = "rank-silver"; icon = "🥈";
+      benefit = "Giảm 3% đơn hàng";
+  }
+  // ------------------------------------------------------
+
+  // --- TÍNH TDEE ---
   const estimatedTDEE = useMemo(() => {
     const { heightCm, weightKg, birthDate, gender, activityLevel, goal } = form;
     if (!heightCm || !weightKg || !birthDate) return 0;
@@ -101,16 +122,13 @@ export default function AccountProfilePage() {
 
   const onChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
-  const onSubmit = async (e) => {
-    e.preventDefault();
+  const onSubmit = async () => {
     const loadId = toast.loading("Đang lưu...");
     try {
-      // Update profile (chỉ gửi các trường cần thiết)
       await updateProfile({
         fullName: form.fullName, birthDate: form.birthDate, gender: form.gender,
         heightCm: Number(form.heightCm)||null, weightKg: Number(form.weightKg)||null,
-        activityLevel: form.activityLevel, 
-        goal: form.goal,
+        activityLevel: form.activityLevel, goal: form.goal,
         targetCalories: Number(form.targetCalories)||null,
       });
 
@@ -148,6 +166,49 @@ export default function AccountProfilePage() {
             <FaSave /> Lưu thay đổi
          </button>
       </div>
+
+      {/* --- THẺ THÀNH VIÊN (ĐÃ SỬA CLASS THEO CSS CỦA BẠN) --- */}
+      <div className={`membership-card ${rankClass}`}>
+          {/* Icon nền chìm */}
+          <div className="card-bg-icon">
+              <FaCrown />
+          </div>
+
+          <div className="card-content">
+              <div className="card-left">
+                  <div className="card-label">Thẻ thành viên FoodApp</div>
+                  <div className="card-rank">
+                      <span className="rank-icon" style={{marginRight: 8}}>{icon}</span> 
+                      {rank}
+                  </div>
+                  <div className="card-points">
+                       <span className="points-num">{points}</span> điểm tích lũy
+                  </div>
+              </div>
+              
+              <div className="card-right">
+                  <div className="progress-label">
+                      {nextRank !== "Max" ? `Tiến độ lên hạng ${nextRank}` : "Đẳng cấp cao nhất"}
+                  </div>
+                  <div className="progress-bar-bg">
+                      <div className="progress-bar-fill" style={{ width: `${progress}%` }}></div>
+                  </div>
+                  <div className="next-points">
+                      {nextRank !== "Max" ? `Cần thêm ${points >= 2000 ? 0 : (points < 100 ? 100 - points : (points < 500 ? 500 - points : 2000 - points))} điểm` : "Xin chúc mừng!"}
+                  </div>
+              </div>
+          </div>
+          
+          <div className="card-footer">
+               <div className="glass-btn">
+                  <FaCrown className="text-yellow-200"/> Quyền lợi: {benefit}
+               </div>
+               <div className="glass-btn" style={{opacity: 0.8}}>
+                  <FaGift /> Đổi quà (Sắp ra mắt)
+               </div>
+          </div>
+      </div>
+      {/* -------------------------------------------------------- */}
 
       <div className="grid-2x2-balanced" style={{alignItems: 'start'}}>
         

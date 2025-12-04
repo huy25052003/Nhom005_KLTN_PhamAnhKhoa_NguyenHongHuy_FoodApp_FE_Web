@@ -6,13 +6,13 @@ import { placeOrder } from "../../api/orders.js";
 import { createPaymentLink } from "../../api/payment.js";
 import { getMyShipping } from "../../api/shipping.js";
 import { previewPromotion } from "../../api/promotions.js"; 
+import { getMe } from "../../api/users.js"; // Import getMe
 import { useAuth } from "../../stores/auth.js";
 import { useCart } from "../../stores/cart.js";
 
-// Components UI Mới (Đã tạo ở các bước trước)
 import ConfirmModal from "../../component/ConfirmModal.jsx";
 import LazyImage from "../../component/LazyImage.jsx";
-import { FaTrash, FaShoppingCart, FaArrowRight, FaStore } from "react-icons/fa";
+import { FaTrash, FaShoppingCart, FaStore, FaCrown } from "react-icons/fa";
 
 const fmt = (n) => (Number(n || 0)).toLocaleString("vi-VN") + " đ";
 
@@ -27,10 +27,9 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
   const [cartActionLoading, setCartActionLoading] = useState(false);
-
   const [shipping, setShipping] = useState(null);
   
-  // Promotion State
+  // Promotion
   const [promoCode, setPromoCode] = useState("");
   const [discount, setDiscount] = useState(0);
   const [appliedCode, setAppliedCode] = useState(null);
@@ -38,9 +37,10 @@ export default function CheckoutPage() {
   const [promoStatus, setPromoStatus] = useState("");
   const [checkingCode, setCheckingCode] = useState(false);
 
-  // Modal State
-  const [confirmState, setConfirmState] = useState({ isOpen: false, data: null });
+  // Member Points
+  const [userPoints, setUserPoints] = useState(0);
 
+  const [confirmState, setConfirmState] = useState({ isOpen: false, data: null });
   const isShippingValid = !!(shipping && shipping.phone && shipping.addressLine);
 
   async function loadData(isBackground = false) {
@@ -50,12 +50,14 @@ export default function CheckoutPage() {
         nav(`/admin/login?redirect=${encodeURIComponent("/checkout")}`);
         return;
       }
-      const [c, s] = await Promise.all([
+      const [c, s, u] = await Promise.all([
         getCart(),
         getMyShipping().catch(() => null),
+        getMe().catch(() => ({ points: 0 }))
       ]);
       setCart(c);
       setShipping(s);
+      setUserPoints(u.points || 0);
       
       const items = c?.items || c?.cartItems || [];
       const totalQty = items.reduce((sum, it) => sum + (it?.quantity ?? 0), 0);
@@ -81,90 +83,62 @@ export default function CheckoutPage() {
     [items]
   );
 
-  const total = Math.max(0, subtotal - discount);
+  // --- TÍNH TOÁN GIẢM GIÁ THÀNH VIÊN ---
+  let memberRate = 0.01; // Mặc định Đồng 1%
+  let rankName = "Đồng (1%)";
+  if (userPoints >= 2000) { memberRate = 0.08; rankName = "Kim Cương (8%)"; }
+  else if (userPoints >= 500) { memberRate = 0.05; rankName = "Vàng (5%)"; }
+  else if (userPoints >= 100) { memberRate = 0.03; rankName = "Bạc (3%)"; }
 
-  // --- Action Handlers ---
+  const memberDiscount = Math.round(subtotal * memberRate);
+  const finalTotal = Math.max(0, subtotal - discount - memberDiscount);
 
+  // ... (Giữ nguyên các hàm xử lý Qty, Remove, Coupon) ...
   async function changeQty(item, delta) {
     if (cartActionLoading) return;
     const currentQty = item?.quantity || 1;
     const stock = item?.product?.stock || 0;
     const next = Math.max(1, currentQty + delta);
-
-    if (delta > 0 && next > stock) {
-        toast.error(`Sản phẩm này chỉ còn ${stock} món.`);
-        return;
-    }
+    if (delta > 0 && next > stock) { toast.error(`Sản phẩm này chỉ còn ${stock} món.`); return; }
 
     setCartActionLoading(true);
     try {
       await updateCartItem(item.id, next);
       await loadData(true); 
-      if (appliedCode) {
-         setAppliedCode(null); setDiscount(0);
-         setPromoMsg("Giỏ hàng thay đổi, vui lòng áp lại mã.");
-         setPromoStatus("error");
-      }
-    } catch (e) {
-      toast.error("Lỗi cập nhật số lượng");
-    } finally {
-      setCartActionLoading(false);
-    }
+      if (appliedCode) { setAppliedCode(null); setDiscount(0); setPromoMsg("Giỏ hàng thay đổi, vui lòng áp lại mã."); setPromoStatus("error"); }
+    } catch (e) { toast.error("Lỗi cập nhật số lượng"); } finally { setCartActionLoading(false); }
   }
 
-  // Mở Modal xóa
-  function onRemoveClick(item) {
-    if (cartActionLoading) return;
-    setConfirmState({ isOpen: true, data: item });
-  }
+  function onRemoveClick(item) { if (cartActionLoading) return; setConfirmState({ isOpen: true, data: item }); }
 
-  // Xử lý xóa thật
   async function handleConfirmRemove() {
     const item = confirmState.data;
     setConfirmState({ isOpen: false, data: null });
-
     setCartActionLoading(true);
     try {
       await removeCartItem(item.id);
       toast.success("Đã xóa sản phẩm");
       await loadData(true);
       if (appliedCode) { setAppliedCode(null); setDiscount(0); setPromoMsg(""); }
-    } catch {
-       toast.error("Xóa sản phẩm thất bại");
-    } finally {
-       setCartActionLoading(false);
-    }
+    } catch { toast.error("Xóa sản phẩm thất bại"); } finally { setCartActionLoading(false); }
   }
 
   async function handleApplyCoupon() {
     if (!promoCode.trim()) return toast.error("Vui lòng nhập mã giảm giá");
     setCheckingCode(true); setPromoMsg(""); setPromoStatus("");
-
     try {
-      const payloadItems = items.map(it => ({
-        productId: it.product?.id || it.productId,
-        quantity: it.quantity
-      }));
+      const payloadItems = items.map(it => ({ productId: it.product?.id || it.productId, quantity: it.quantity }));
       const res = await previewPromotion(promoCode, payloadItems);
-      
       if (res.discount > 0) {
-        setDiscount(res.discount);
-        setAppliedCode(res.code || promoCode);
-        setPromoMsg(`Áp dụng thành công: Giảm ${fmt(res.discount)}`);
-        setPromoStatus("success");
+        setDiscount(res.discount); setAppliedCode(res.code || promoCode);
+        setPromoMsg(`Áp dụng thành công: Giảm ${fmt(res.discount)}`); setPromoStatus("success");
         toast.success(`Đã giảm ${fmt(res.discount)}`);
       } else {
-        setDiscount(0); setAppliedCode(null);
-        setPromoMsg(res.message || "Mã không hợp lệ");
-        setPromoStatus("error");
+        setDiscount(0); setAppliedCode(null); setPromoMsg(res.message || "Mã không hợp lệ"); setPromoStatus("error");
       }
     } catch (e) {
-      setDiscount(0); setAppliedCode(null);
-      setPromoMsg(e?.response?.data?.message || "Lỗi kiểm tra mã");
-      setPromoStatus("error");
-    } finally {
-      setCheckingCode(false);
-    }
+      setDiscount(0); setAppliedCode(null); setPromoMsg(e?.response?.data?.message || "Lỗi kiểm tra mã"); setPromoStatus("error");
+    } finally { setCheckingCode(false); }
   }
 
   async function handlePlaceOrder() {
@@ -179,19 +153,10 @@ export default function CheckoutPage() {
     const loadId = toast.loading("Đang tạo đơn hàng...");
 
     try {
-      const orderItemsPayload = items.map(it => ({
-        product: { id: it.product?.id || it.productId },
-        quantity: it.quantity
-      }));
-
+      const orderItemsPayload = items.map(it => ({ product: { id: it.product?.id || it.productId }, quantity: it.quantity }));
       const requestPayload = {
         items: orderItemsPayload,
-        shippingInfo: {
-             phone: shipping.phone,
-             addressLine: shipping.addressLine,
-             city: shipping.city || "",
-             note: shipping.note || ""
-        },
+        shippingInfo: { phone: shipping.phone, addressLine: shipping.addressLine, city: shipping.city || "", note: shipping.note || "" },
         paymentMethod: method,
         promoCode: appliedCode 
       };
@@ -214,24 +179,18 @@ export default function CheckoutPage() {
     } catch (e) {
       toast.dismiss(loadId);
       toast.error(e?.response?.data?.message || e?.message || "Đặt hàng thất bại");
-    } finally {
-      setPlacing(false);
-    }
+    } finally { setPlacing(false); }
   }
 
   if (loading && !cart) return <div className="container section text-center"><div className="loading"></div></div>;
 
-  // === MAIN CHECKOUT UI ===
   return (
     <div className="container section fade-in">
       <h1 className="h1 mb-4">Thanh toán</h1>
       <div className="grid2">
-        
-        {/* Cột Trái: Danh sách món */}
         <div className="card card-hover" style={{display: 'flex', flexDirection: 'column', height: '100%'}}>
           <div className="card-title">Đơn hàng ({items.length} món)</div>
           
-          {/* START: Logic hiển thị danh sách HOẶC empty state TRONG card */}
           {items.length === 0 ? (
              <div className="flex-1 flex-col align-center justify-center py-10 text-center">
                 <div style={{ fontSize: '3rem', color: '#e2e8f0', marginBottom: '1rem' }}>
@@ -280,12 +239,7 @@ export default function CheckoutPage() {
                         </td>
                         <td style={{ textAlign: "right", fontWeight: 600 }}>{fmt(price * (it.quantity || 0))}</td>
                         <td style={{ textAlign: "right" }}>
-                            <button 
-                                className="btn btn-sm btn-ghost text-red" 
-                                onClick={() => onRemoveClick(it)} 
-                                disabled={cartActionLoading}
-                                title="Xóa"
-                            >
+                            <button className="btn btn-sm btn-ghost text-red" onClick={() => onRemoveClick(it)} disabled={cartActionLoading} title="Xóa">
                                 <FaTrash />
                             </button>
                         </td>
@@ -296,9 +250,7 @@ export default function CheckoutPage() {
                 </table>
             </div>
           )}
-          {/* END */}
 
-          {/* Coupon - Disable nếu không có item */}
           <div style={{ background: '#f8fafc', padding: 16, borderRadius: 12, marginTop: 'auto', border: '1px dashed #cbd5e1', opacity: items.length ? 1 : 0.5, pointerEvents: items.length ? 'auto' : 'none' }}>
             <label className="label">🎟️ Mã khuyến mãi</label>
             <div className="flex-row gap-2">
@@ -318,30 +270,38 @@ export default function CheckoutPage() {
             {promoMsg && <div className={`mt-2 font-bold text-sm ${promoStatus==='success' ? 'text-green-600' : 'text-red'}`}>{promoMsg}</div>}
           </div>
 
-          {/* Totals */}
           <div className="vstack gap-2 mt-4 pt-4 border-top">
              <div className="flex-row space-between">
                 <span className="muted">Tạm tính</span>
                 <span>{fmt(subtotal)}</span>
              </div>
+
+             {/* --- HIỂN THỊ GIẢM GIÁ THÀNH VIÊN --- */}
+             {memberDiscount > 0 && (
+                <div className="flex-row space-between text-orange-600">
+                    <span className="flex items-center gap-1 font-bold"><FaCrown/> Ưu đãi thành viên {rankName}</span>
+                    <span className="fw-bold">- {fmt(memberDiscount)}</span>
+                </div>
+             )}
+             {/* ----------------------------------- */}
+
              {discount > 0 && (
                 <div className="flex-row space-between text-green-600">
-                    <span>Giảm giá ({appliedCode})</span>
+                    <span>Mã giảm giá ({appliedCode})</span>
                     <span className="fw-bold">- {fmt(discount)}</span>
                 </div>
              )}
              <div className="flex-row space-between" style={{ fontSize: '1.4rem', fontWeight: 800, marginTop: 8 }}>
                 <span>Tổng cộng</span>
-                <span className="text-primary">{fmt(total)}</span>
+                <span className="text-primary">{fmt(finalTotal)}</span>
              </div>
           </div>
         </div>
 
-        {/* Cột Phải: Shipping & Payment */}
+        {/* Cột Phải: Shipping & Payment (Giữ nguyên) */}
         <div className="vstack gap-3">
             <div className="card-shipping card card-hover">
               <div className="card-title">📍 Thông tin giao hàng</div>
-              
               {!isShippingValid ? (
                 <div className="bg-red-50 p-3 rounded border border-red-200 text-red text-center">
                   <p className="mb-2">Bạn chưa có địa chỉ giao hàng.</p>
@@ -387,7 +347,7 @@ export default function CheckoutPage() {
                   disabled={!items.length || placing || !isShippingValid || cartActionLoading || loading}
                   onClick={handlePlaceOrder}
                 >
-                  {placing ? "Đang xử lý..." : `Đặt hàng • ${fmt(total)}`}
+                  {placing ? "Đang xử lý..." : `Đặt hàng • ${fmt(finalTotal)}`}
                 </button>
                 <div className="text-center mt-2 text-sm muted">
                     Bằng việc đặt hàng, bạn đồng ý với <Link to="/terms">điều khoản sử dụng</Link>
@@ -396,7 +356,6 @@ export default function CheckoutPage() {
         </div>
       </div>
 
-      {/* MODAL XÁC NHẬN XÓA */}
       <ConfirmModal 
         isOpen={confirmState.isOpen}
         title="Xóa sản phẩm?"

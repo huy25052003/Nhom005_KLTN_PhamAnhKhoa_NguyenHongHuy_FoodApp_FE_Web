@@ -1544,4 +1544,160 @@ body {
   0% { background-position: -200px 0; }
   100% { background-position: calc(200px + 100%) 0; }
 }
+/* =========================================
+   7. MEMBERSHIP CARD STYLES (NEW)
+========================================= */
+.membership-card {
+  position: relative;
+  border-radius: 20px;
+  padding: 24px;
+  color: #fff;
+  overflow: hidden;
+  box-shadow: 0 10px 30px -5px rgba(0,0,0,0.2);
+  margin-bottom: 32px;
+  border: 1px solid rgba(255,255,255,0.2);
+}
 
+/* Màu nền theo hạng */
+.membership-card.rank-bronze {
+  background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%); /* Cam/Đồng */
+}
+.membership-card.rank-silver {
+  background: linear-gradient(135deg, #64748b 0%, #94a3b8 100%); /* Xám Bạc */
+}
+.membership-card.rank-gold {
+  background: linear-gradient(135deg, #eab308 0%, #fcd34d 100%); /* Vàng */
+}
+.membership-card.rank-diamond {
+  background: linear-gradient(135deg, #7c3aed 0%, #c084fc 100%); /* Tím Kim Cương */
+}
+
+/* Background Icon */
+.card-bg-icon {
+  position: absolute;
+  top: -20px;
+  right: -20px;
+  opacity: 0.15;
+  font-size: 180px;
+  transform: rotate(15deg);
+  pointer-events: none;
+}
+
+.card-content {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 20px;
+  position: relative;
+  z-index: 10;
+}
+
+.card-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 700;
+  opacity: 0.9;
+  margin-bottom: 4px;
+}
+
+.card-rank {
+  font-size: 2.5rem;
+  font-weight: 900;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.card-points {
+  margin-top: 12px;
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+.card-points .points-num {
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+
+.card-right {
+  flex: 1;
+  max-width: 300px;
+  text-align: right;
+}
+
+.progress-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  opacity: 0.8;
+  margin-bottom: 6px;
+}
+
+.progress-bar-bg {
+  background: rgba(0,0,0,0.2);
+  height: 10px;
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: #fff;
+  border-radius: 99px;
+  box-shadow: 0 0 10px rgba(255,255,255,0.5);
+  transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.next-points {
+  font-size: 0.8rem;
+  margin-top: 6px;
+  opacity: 0.9;
+}
+
+.card-footer {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255,255,255,0.2);
+  display: flex;
+  gap: 12px;
+  position: relative;
+  z-index: 10;
+}
+
+.glass-btn {
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  padding: 8px 16px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+  transition: all 0.2s;
+}
+.glass-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .card-content {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .card-right {
+    text-align: left;
+    max-width: 100%;
+    width: 100%;
+  }
+  .card-footer {
+    flex-direction: column;
+    gap: 8px;
+  }
+}
