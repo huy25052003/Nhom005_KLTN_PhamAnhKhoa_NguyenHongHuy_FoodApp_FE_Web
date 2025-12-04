@@ -9,22 +9,26 @@ import { useCart } from "../../stores/cart.js";
 import { useChatStore } from "../../stores/chatStore.js";
 import { getRecommendations } from "../../api/recommendations.js";
 import { getMe } from "../../api/users.js";
-// Import icon
+import { getProfile } from "../../api/users.js"; // Import thêm getProfile nếu chưa có
+import LazyImage from "../../component/LazyImage.jsx"; // Đảm bảo import LazyImage
+
+// Import icon (Thêm FaQuoteLeft)
 import { 
   FaChevronLeft, FaChevronRight, 
   FaLeaf, FaTruck, FaBoxOpen, FaHeartbeat, FaUtensils, 
-  FaBolt, FaFish, FaSun, FaAppleAlt, FaCarrot 
+  FaBolt, FaFish, FaSun, FaAppleAlt, FaCarrot, FaQuoteLeft 
 } from "react-icons/fa";
 
-const samplePlans = [
-  { name: "Gói FIT 3 Trưa - Tối", desc: "Best seller", price: 650000, badge: "Best seller" },
-  { name: "Gói FULL 3 bữa/ngày", desc: "Giữ cân healthy", price: 825000 },
-  { name: "Gói SLIM Không tinh bột", desc: "Gấp đôi rau", price: 600000 },
-  { name: "Gói MEAT Tăng cơ", desc: "Thêm 1.5x thịt", price: 950000 },
-];
 const formatVND = (n) => (n ?? 0).toLocaleString("vi-VN") + " đ";
 
-// --- DANH SÁCH ĐỐI TÁC GIẢ LẬP ---
+// --- DỮ LIỆU ĐÁNH GIÁ ---
+const testimonials = [
+  { id: 1, name: "Minh Tú", role: "PT Gym", content: "Đồ ăn tính calo rất chuẩn, giúp học viên của mình siết cân hiệu quả mà vẫn đủ sức tập luyện.", avatar: "https://i.pravatar.cc/150?img=33" },
+  { id: 2, name: "Lan Anh", role: "Nhân viên văn phòng", content: "Cứu tinh cho dân văn phòng bận rộn. Trưa nào cũng được ăn ngon, sạch, giao đúng giờ.", avatar: "https://i.pravatar.cc/150?img=5" },
+  { id: 3, name: "Chị Hoàng", role: "Nội trợ", content: "Rau củ rất tươi, thịt mềm. Mình hay đặt gói tuần cho cả nhà ăn đổi vị, rất tiện lợi.", avatar: "https://i.pravatar.cc/150?img=9" },
+];
+
+// --- DANH SÁCH ĐỐI TÁC ---
 const dummyPartners = [
     { name: "FreshFarm", color: "#16a34a", icon: <FaCarrot /> },   
     { name: "QuickShip", color: "#2563eb", icon: <FaTruck /> },    
@@ -51,24 +55,34 @@ export default function HomePage() {
   const isDown = useRef(false);
   const startX = useRef(0);
   const scrollLeftPos = useRef(0);
+  
   const [recommended, setRecommended] = useState([]);
-  const [hasProfile, setHasProfile] = useState(false);
+  const [appState, setAppState] = useState("LOADING"); // LOADING | NO_PROFILE | HAS_PROFILE | EMPTY
 
+  // Logic gợi ý TDEE
   useEffect(() => {
     if (!token) return;
     (async () => {
       try {
+        // Check profile trước
+        const userProfile = await getProfile().catch(() => null);
+        if (!userProfile || !userProfile.heightCm || !userProfile.weightKg) {
+            setAppState("NO_PROFILE");
+            return;
+        }
+
         const recs = await getRecommendations();
         if (recs && recs.length > 0) {
           setRecommended(recs);
-          setHasProfile(true);
+          setAppState("HAS_PROFILE");
         } else {
-          setHasProfile(false); 
+          setAppState("EMPTY"); 
         }
       } catch (e) {}
     })();
   }, [token]);
 
+  // Logic load chung
   useEffect(() => {
     (async () => {
       try {
@@ -82,6 +96,7 @@ export default function HomePage() {
     })();
   }, []);
 
+  // Logic yêu thích
   useEffect(() => {
     let stop = false;
     (async () => {
@@ -100,9 +115,7 @@ export default function HomePage() {
         if (!stop) setFavMap(Object.fromEntries(entries));
       } catch {}
     })();
-    return () => {
-      stop = true;
-    };
+    return () => { stop = true; };
   }, [token, featured]);
 
   async function onAdd(product) {
@@ -144,10 +157,7 @@ export default function HomePage() {
     if (partnerScrollRef.current) {
       const { current } = partnerScrollRef;
       const scrollAmount = 300; 
-      current.scrollBy({ 
-        left: direction === 'left' ? -scrollAmount : scrollAmount, 
-        behavior: 'smooth' 
-      });
+      current.scrollBy({ left: direction === 'left' ? -scrollAmount : scrollAmount, behavior: 'smooth' });
     }
   };
 
@@ -159,17 +169,8 @@ export default function HomePage() {
         scrollLeftPos.current = partnerScrollRef.current.scrollLeft;
     }
   };
-  
-  const onMouseLeave = () => {
-    isDown.current = false;
-    if(partnerScrollRef.current) partnerScrollRef.current.style.cursor = 'grab';
-  };
-  
-  const onMouseUp = () => {
-    isDown.current = false;
-    if(partnerScrollRef.current) partnerScrollRef.current.style.cursor = 'grab';
-  };
-  
+  const onMouseLeave = () => { isDown.current = false; if(partnerScrollRef.current) partnerScrollRef.current.style.cursor = 'grab'; };
+  const onMouseUp = () => { isDown.current = false; if(partnerScrollRef.current) partnerScrollRef.current.style.cursor = 'grab'; };
   const onMouseMove = (e) => {
     if (!isDown.current) return;
     e.preventDefault();
@@ -189,9 +190,7 @@ export default function HomePage() {
             <p>Trải nghiệm bữa ăn sạch tươi ngon, giàu dinh dưỡng — lên plan theo mục tiêu của bạn.</p>
             <div className="hero-actions">
               <Link to="/order" className="btn btn-primary">Đặt ngay</Link>
-              <button onClick={open} className="btn btn-ghost">
-                Tư vấn
-              </button>
+              <button onClick={open} className="btn btn-ghost">Tư vấn</button>
             </div>
             <ul className="hero-usps">
               <li>Giao tận nơi mỗi ngày</li>
@@ -204,31 +203,30 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* GỢI Ý TDEE */}
       {token && (
         <section className="section" style={{ background: '#f0fdf4' }}>
           <div className="container">
             <div className="flex-row space-between align-center mb-4">
               <div>
-                <h2 className="section-title" style={{textAlign: 'left', marginBottom: 8}}>
+                <h2 className="section-title" style={{textAlign: 'left', marginBottom: 8, color: '#166534'}}>
                   🥗 Dành riêng cho bạn
                 </h2>
                 <p className="muted">
-                  {hasProfile 
+                  {appState === "HAS_PROFILE" 
                     ? "Thực đơn được tính toán dựa trên chỉ số cơ thể (TDEE) của bạn." 
-                    : "Cập nhật chỉ số cơ thể để nhận gợi ý thực đơn chuẩn healthy!"}
+                    : "Khám phá thực đơn healthy chuẩn khoa học."}
                 </p>
               </div>
-              {!hasProfile && (
-                <Link to="/account" className="btn btn-outline btn-sm">
-                  Cập nhật Hồ sơ ngay →
-                </Link>
+              {appState === "NO_PROFILE" && (
+                <Link to="/account" className="btn btn-outline btn-sm">Cập nhật Hồ sơ →</Link>
               )}
             </div>
 
-            {hasProfile && recommended.length > 0 ? (
+            {appState === "HAS_PROFILE" && recommended.length > 0 ? (
               <div className="grid4">
                 {recommended.map((it) => {
-                  // Logic copy từ section Featured để đảm bảo UI đồng bộ
                   const isFav = !!favMap[it.id];
                   return (
                     <div key={it.id} className="card product-card card-hover" style={{ position: "relative" }}>
@@ -241,23 +239,18 @@ export default function HomePage() {
                           }}>
                           <span style={{ color: isFav ? "crimson" : "#999", fontSize: 18 }}>{isFav ? "♥" : "♡"}</span>
                       </button>
-
                       <Link to={`/products/${it.id}`}>
                           <div className="product-thumb-wrapper">
-                            <img src={it.imageUrl || "/placeholder.jpg"} alt={it.name} 
-                                style={{width:"100%", height:180, objectFit:"cover"}} loading="lazy"/>
+                            <LazyImage src={it.imageUrl || "/placeholder.jpg"} alt={it.name} style={{width:"100%", height:180, objectFit:"cover"}}/>
                           </div>
                       </Link>
-
                       <div className="product-info">
                           <div className="flex-row space-between">
-                            <Link to={`/products/${it.id}`} className="product-name">{it.name}</Link>
-                            {/* Tag Calories */}
-                            {it.calories && <span className="badge" style={{background:'#dcfce7', color:'#166534', fontSize:'0.75rem'}}>{it.calories} kcal</span>}
+                             <Link to={`/products/${it.id}`} className="product-name">{it.name}</Link>
+                             {it.calories && <span className="badge" style={{background:'#dcfce7', color:'#166534', fontSize:'0.75rem'}}>{it.calories} kcal</span>}
                           </div>
                           <div className="product-price">{formatVND(it.price)}</div>
                       </div>
-
                       <div className="card-actions">
                           <button className="btn btn-primary btn-sm" onClick={() => onAdd(it)} disabled={it.stock <= 0}>
                             {it.stock <= 0 ? "Hết hàng" : "Thêm vào giỏ"}
@@ -267,17 +260,18 @@ export default function HomePage() {
                   );
                 })}
               </div>
-            ) : (
+            ) : appState === "NO_PROFILE" ? (
               <div className="card text-center py-5" style={{border:'2px dashed #bbf7d0'}}>
-                <div style={{fontSize: '3rem', marginBottom: 16}}>📊</div>
-                <h3 className="h3">Bạn chưa cập nhật thông tin sức khỏe?</h3>
-                <p className="muted mb-3">Hãy cho chúng tôi biết Chiều cao, Cân nặng để tính toán Calo phù hợp nhất.</p>
-                <Link to="/account" className="btn btn-primary">Đi đến Hồ sơ cá nhân</Link>
+                 <div style={{fontSize: '3rem', marginBottom: 16}}>📊</div>
+                 <h3 className="h3">Bạn chưa cập nhật thông tin sức khỏe?</h3>
+                 <p className="muted mb-3">Hãy cho chúng tôi biết Chiều cao, Cân nặng để tính toán Calo phù hợp nhất.</p>
+                 <Link to="/account" className="btn btn-primary">Đi đến Hồ sơ cá nhân</Link>
               </div>
-            )}
+            ) : null}
           </div>
         </section>
       )}
+
       <section className="section fade-in">
         <div className="container">
           <h2 className="section-title">Cách đặt hàng</h2>
@@ -290,34 +284,13 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="section section-alt fade-in">
-        <div className="container">
-          <h2 className="section-title">Sản phẩm tiêu biểu</h2>
-          <div className="grid4">
-            {samplePlans.map((p, i) => (
-              <div key={i} className="card plan-card card-hover">
-                {p.badge && <div className="badge badge-primary">{p.badge}</div>}
-                <div className="plan-name">{p.name}</div>
-                <div className="plan-desc">{p.desc}</div>
-                <div className="plan-price">{formatVND(p.price)}</div>
-                <button className="btn btn-primary w-full">Chọn gói</button>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {!!cats.length && (
         <section className="section fade-in">
           <div className="container">
             <h2 className="section-title">Danh mục nổi bật</h2>
             <div className="grid6">
               {cats.map((c) => (
-                <Link
-                  key={c.id}
-                  to={`/categories/${c.id}`}
-                  className="card cat-card card-hover"
-                >
+                <Link key={c.id} to={`/categories/${c.id}`} className="card cat-card card-hover">
                   <div className="cat-name">{c.name}</div>
                 </Link>
               ))}
@@ -334,14 +307,10 @@ export default function HomePage() {
               const isFav = !!favMap[it.id];
               return (
                 <div key={it.id} className="card product-card card-hover" style={{ position: "relative" }}>
-                  <button
-                    type="button"
-                    className="icon-heart"
-                    onClick={() => onToggleFavorite(it.id)}
+                  <button type="button" className="icon-heart" onClick={() => onToggleFavorite(it.id)}
                     title={isFav ? "Bỏ yêu thích" : "Thêm yêu thích"}
                     style={{
-                      position: "absolute", top: 12, right: 12,
-                      width: 36, height: 36, borderRadius: 18,
+                      position: "absolute", top: 12, right: 12, width: 36, height: 36, borderRadius: 18,
                       border: "1px solid #eee", background: "rgba(255,255,255,0.8)",
                       display: "grid", placeItems: "center", cursor: "pointer", zIndex: 2,
                       transition: 'transform 0.2s ease',
@@ -349,40 +318,25 @@ export default function HomePage() {
                     onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
                     onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
                   >
-                    <span style={{ color: isFav ? "crimson" : "#999", fontSize: 18 }}>
-                      {isFav ? "♥" : "♡"}
-                    </span>
+                    <span style={{ color: isFav ? "crimson" : "#999", fontSize: 18 }}>{isFav ? "♥" : "♡"}</span>
                   </button>
 
-                  <Link to={`/products/${it.id}`} aria-label={it.name}>
+                  <Link to={`/products/${it.id}`}>
                     <div className="product-thumb-wrapper">
-                      <img
-                        className="product-img"
-                        src={it.imageUrl || "/placeholder.jpg"}
-                        alt={it.name}
-                        style={{
-                           width: "100%", height: 180, objectFit: "cover", borderRadius: 8,
-                           display: 'block', transition: 'transform 0.3s ease'
-                        }}
-                        loading="lazy"
-                      />
+                      <LazyImage src={it.imageUrl} alt={it.name} style={{ width: "100%", height: 180, objectFit: "cover" }} />
                     </div>
                   </Link>
 
                   <div className="product-info">
-                    <Link to={`/products/${it.id}`} className="product-name">
-                      {it.name}
-                    </Link>
+                    <Link to={`/products/${it.id}`} className="product-name">{it.name}</Link>
                     <div className="product-price">{formatVND(it.price)}</div>
                   </div>
 
                   <div className="card-actions">
-                    <button className="btn btn-primary btn-sm" onClick={() => onAdd(it)} disabled={it.stock <= 0}  style={{ opacity: it.stock <= 0 ? 0.5 : 1 }}>
+                    <button className="btn btn-primary btn-sm" onClick={() => onAdd(it)} disabled={it.stock <= 0} style={{ opacity: it.stock <= 0 ? 0.5 : 1 }}>
                       {it.stock <= 0 ? "Hết hàng" : "Thêm vào giỏ"}
                     </button>
-                    <Link to={`/products/${it.id}`} className="btn btn-outline btn-sm">
-                      Xem chi tiết
-                    </Link>
+                    <Link to={`/products/${it.id}`} className="btn btn-outline btn-sm">Xem chi tiết</Link>
                   </div>
                 </div>
               );
@@ -400,35 +354,35 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* --- PHẦN ĐỐI TÁC: ĐÃ GIẢM KHOẢNG TRẮNG --- */}
-      <section 
-        className="section fade-in" 
-        style={{ 
-            paddingBottom: '20px',  /* Giảm padding đáy của section */
-            marginBottom: '-40px'   /* Kéo footer lên một chút */
-        }}
-      >
+      {/* --- SECTION KHÁCH HÀNG NÓI GÌ (ĐƯỢC THÊM VÀO ĐÂY) --- */}
+      <section className="section fade-in" style={{background: '#fff'}}>
+         <div className="container">
+            <h2 className="section-title text-center">Khách hàng nói gì về FoodApp?</h2>
+            <div className="grid3 mt-4">
+               {testimonials.map(t => (
+                   <div key={t.id} className="card text-center p-6 card-hover" style={{border: '1px solid #f3f4f6'}}>
+                       <div style={{width: 64, height: 64, borderRadius: '50%', overflow:'hidden', margin:'0 auto 1rem'}}>
+                           <img src={t.avatar} alt={t.name} style={{width: '100%', height: '100%', objectFit:'cover'}} />
+                       </div>
+                       <FaQuoteLeft className="text-green-200 text-2xl mb-3 mx-auto" />
+                       <p className="italic mb-4" style={{color: '#4b5563'}}>"{t.content}"</p>
+                       <div className="font-bold">{t.name}</div>
+                       <div className="text-xs muted">{t.role}</div>
+                   </div>
+               ))}
+            </div>
+         </div>
+      </section>
+      {/* ----------------------------------------------------- */}
+
+      <section className="section fade-in" style={{ paddingBottom: '20px', marginBottom: '-40px' }}>
         <div className="container text-center">
           <h2 className="section-title" style={{ marginBottom: '24px' }}>Đối tác & Khách hàng tiêu biểu</h2>
           
           <div className="partner-slider-wrapper">
-            
-            <button 
-                onClick={() => scrollPartners('left')}
-                className="slider-nav-btn prev"
-                aria-label="Previous"
-            >
-                <FaChevronLeft />
-            </button>
+            <button onClick={() => scrollPartners('left')} className="slider-nav-btn prev"><FaChevronLeft /></button>
 
-            <div 
-                ref={partnerScrollRef}
-                className="hide-scrollbar partner-track"
-                onMouseDown={onMouseDown}
-                onMouseLeave={onMouseLeave}
-                onMouseUp={onMouseUp}
-                onMouseMove={onMouseMove}
-            >
+            <div ref={partnerScrollRef} className="hide-scrollbar partner-track" onMouseDown={onMouseDown} onMouseLeave={onMouseLeave} onMouseUp={onMouseUp} onMouseMove={onMouseMove}>
               {dummyPartners.map((partner, i) => (
                 <div key={i} className="partner-card" title={partner.name}>
                    <div className="partner-content" style={{ '--brand-color': partner.color }}>
@@ -439,132 +393,29 @@ export default function HomePage() {
               ))}
             </div>
 
-            <button 
-                onClick={() => scrollPartners('right')}
-                className="slider-nav-btn next"
-                aria-label="Next"
-            >
-                <FaChevronRight />
-            </button>
-
+            <button onClick={() => scrollPartners('right')} className="slider-nav-btn next"><FaChevronRight /></button>
           </div>
         </div>
       </section>
 
-      {/* CSS Update: Giảm padding của track và wrapper */}
       <style>{`
-        .partner-slider-wrapper {
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0 50px;
-            max-width: 1000px;
-            margin: 0 auto;
-        }
-
-        .partner-track {
-            display: flex;
-            gap: 24px;
-            overflow-x: auto;
-            padding: 10px 5px; /* GIẢM PADDING: trên dưới chỉ còn 10px */
-            cursor: grab;
-            user-select: none;
-            width: 100%;
-            scroll-behavior: smooth;
-        }
+        .partner-slider-wrapper { position: relative; display: flex; align-items: center; justify-content: center; padding: 0 50px; max-width: 1000px; margin: 0 auto; }
+        .partner-track { display: flex; gap: 24px; overflow-x: auto; padding: 10px 5px; cursor: grab; user-select: none; width: 100%; scroll-behavior: smooth; }
         .partner-track:active { cursor: grabbing; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
-        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
-        .slider-nav-btn {
-            position: absolute;
-            top: 50%; 
-            transform: translateY(-50%);
-            width: 44px; height: 44px; 
-            border-radius: 50%;
-            background: #fff; 
-            border: 1px solid #e5e7eb;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-            display: flex; align-items: center; justify-content: center;
-            cursor: pointer; color: var(--text); 
-            transition: all 0.2s ease;
-            z-index: 10;
-        }
-        .slider-nav-btn:hover { 
-            background: var(--primary); 
-            color: #fff; 
-            border-color: var(--primary); 
-            box-shadow: 0 6px 16px rgba(16, 185, 129, 0.3);
-            transform: translateY(-50%) scale(1.1);
-        }
-        .slider-nav-btn.prev { left: 0; }
-        .slider-nav-btn.next { right: 0; }
-
-        .partner-card {
-            flex: 0 0 auto;
-            width: 180px;
-            height: 90px;
-            background: #fff;
-            border-radius: 16px;
-            border: 1px solid #f3f4f6;
-            display: flex; align-items: center; justify-content: center;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            overflow: hidden;
-        }
-        .partner-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 15px 30px -10px rgba(0,0,0,0.1);
-            border-color: #e2e8f0;
-        }
-
-        .partner-content {
-            display: flex; align-items: center; gap: 10px;
-            pointer-events: none;
-        }
-        
-        .partner-icon {
-            font-size: 1.8rem;
-            color: #94a3b8;
-            transition: all 0.3s ease;
-            display: flex;
-        }
-        
-        .partner-name {
-            font-weight: 700;
-            font-size: 1.05rem;
-            color: #94a3b8;
-            letter-spacing: -0.5px;
-            transition: all 0.3s ease;
-        }
-
-        .partner-card:hover .partner-icon {
-            color: var(--brand-color);
-            transform: scale(1.1) rotate(-5deg);
-        }
-        .partner-card:hover .partner-name {
-            color: #1e293b;
-        }
-        .partner-card::after {
-            content: '';
-            position: absolute; bottom: 0; left: 0; width: 100%; height: 3px;
-            background: var(--brand-color);
-            transform: scaleX(0);
-            transform-origin: left;
-            transition: transform 0.3s ease;
-        }
-        .partner-card:hover::after {
-            transform: scaleX(1);
-        }
-
-        @media (max-width: 768px) {
-            .partner-slider-wrapper { padding: 0 10px; }
-            .slider-nav-btn { display: none; }
-            .partner-card { width: 150px; height: 80px; }
-            .partner-icon { font-size: 1.5rem; }
-            .partner-name { font-size: 0.95rem; }
-        }
+        .slider-nav-btn { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border-radius: 50%; background: #fff; border: 1px solid #e5e7eb; box-shadow: 0 4px 12px rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text); transition: all 0.2s ease; z-index: 10; }
+        .slider-nav-btn:hover { background: var(--primary); color: #fff; border-color: var(--primary); transform: translateY(-50%) scale(1.1); }
+        .slider-nav-btn.prev { left: 0; } .slider-nav-btn.next { right: 0; }
+        .partner-card { flex: 0 0 auto; width: 180px; height: 90px; background: #fff; border-radius: 16px; border: 1px solid #f3f4f6; display: flex; align-items: center; justify-content: center; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; }
+        .partner-card:hover { transform: translateY(-5px); box-shadow: 0 15px 30px -10px rgba(0,0,0,0.1); border-color: #e2e8f0; }
+        .partner-content { display: flex; align-items: center; gap: 10px; pointer-events: none; }
+        .partner-icon { font-size: 1.8rem; color: #94a3b8; transition: all 0.3s ease; display: flex; }
+        .partner-name { font-weight: 700; font-size: 1.05rem; color: #94a3b8; letter-spacing: -0.5px; transition: all 0.3s ease; }
+        .partner-card:hover .partner-icon { color: var(--brand-color); transform: scale(1.1) rotate(-5deg); }
+        .partner-card:hover .partner-name { color: #1e293b; }
+        .partner-card::after { content: ''; position: absolute; bottom: 0; left: 0; width: 100%; height: 3px; background: var(--brand-color); transform: scaleX(0); transform-origin: left; transition: transform 0.3s ease; }
+        .partner-card:hover::after { transform: scaleX(1); }
+        @media (max-width: 768px) { .partner-slider-wrapper { padding: 0 10px; } .slider-nav-btn { display: none; } .partner-card { width: 150px; height: 80px; } }
       `}</style>
     </>
   );

@@ -1,15 +1,24 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react"; // Thêm useRef
 import { useParams, useNavigate, Link } from "react-router-dom";
-import toast from "react-hot-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-// SỬA LỖI: Import getProductsPublic từ api/public.js
+import toast from "react-hot-toast";
+
+// --- API IMPORTS ---
 import { getProduct } from "../../api/products"; 
 import { getProductsPublic } from "../../api/public"; 
 import { addToCart, getCart } from "../../api/cart";
 import { listReviews, createReview, deleteReview, getAvgRating } from "../../api/reviews";
+import { toggleFavorite } from "../../api/favorites"; 
+import http from "../../lib/http"; 
+
+// --- COMPONENTS ---
 import { useAuth } from "../../stores/auth";
 import { useCart } from "../../stores/cart";
 import LazyImage from "../../component/LazyImage";
+import { 
+  FaShoppingCart, FaHeart, FaFire, FaDna, FaBreadSlice, FaOilCan, FaStar, FaRegStar, FaTrash,
+  FaChevronLeft, FaChevronRight // Import thêm icon mũi tên
+} from "react-icons/fa";
 
 const formatVND = (n) => (n ?? 0).toLocaleString("vi-VN") + " đ";
 
@@ -18,312 +27,392 @@ function decodeJwt(token) {
     const payload = token.split(".")[1];
     const json = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
     return { username: json.sub, roles: json.roles || json.authorities || [] };
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
 export default function ProductDetailPage() {
   const { id } = useParams();
   const pid = Number(id);
+  const nav = useNavigate();
   const qc = useQueryClient();
+  
   const { token } = useAuth();
   const { setCount } = useCart();
-  const me = React.useMemo(() => (token ? decodeJwt(token) : null), [token]);
-  const nav = useNavigate();
+  const me = useMemo(() => (token ? decodeJwt(token) : null), [token]);
 
-  // Scroll lên đầu trang khi đổi sản phẩm (quan trọng khi bấm vào sản phẩm liên quan)
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [pid]);
+  const [qty, setQty] = useState(1);
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState("");
+  const [isFav, setIsFav] = useState(false);
 
-  // 1. Lấy thông tin sản phẩm
-  const { data: product, isLoading: loadingProduct, error: errProduct } = useQuery({
+  // --- REF CHO SLIDER ---
+  const sliderRef = useRef(null);
+  const isDown = useRef(false);
+  const startX = useRef(0);
+  const scrollLeft = useRef(0);
+
+  useEffect(() => { window.scrollTo(0, 0); }, [pid]);
+
+  // Queries (Giữ nguyên)
+  const { data: product, isLoading: loadingProduct } = useQuery({
     queryKey: ["product", pid],
     queryFn: () => getProduct(pid),
   });
 
-  // 2. Lấy danh sách đánh giá
-  const { data: reviews = [], isLoading: loadingReviews } = useQuery({
+  const { data: reviews = [] } = useQuery({
     queryKey: ["reviews", pid],
     queryFn: () => listReviews(pid),
   });
 
-  // 3. Lấy điểm đánh giá trung bình
   const { data: avgRating = 0 } = useQuery({
     queryKey: ["reviews-avg", pid],
     queryFn: () => getAvgRating(pid),
   });
 
-  // 4. Lấy sản phẩm liên quan (Cùng danh mục)
   const { data: relatedProducts = [] } = useQuery({
     queryKey: ["related-products", product?.category?.id],
     queryFn: async () => {
       if (!product?.category?.id) return [];
-      // Gọi API lấy sản phẩm cùng danh mục
-      const res = await getProductsPublic({ categoryId: product.category.id, limit: 5 });
-      // Lọc bỏ sản phẩm hiện tại
+      const res = await getProductsPublic({ categoryId: product.category.id, limit: 10 }); // Lấy nhiều hơn để scroll
       return (Array.isArray(res) ? res : res.items || []).filter(p => p.id !== pid);
     },
-    enabled: !!product?.category?.id, // Chỉ chạy khi đã có thông tin product
+    enabled: !!product?.category?.id,
   });
 
-  const [qty, setQty] = React.useState(1);
-  const addToCartMutation = useMutation({
+  useEffect(() => {
+      if (token && pid) {
+          http.get(`/favorites/${pid}`).then(res => {
+              if(res.data) setIsFav(res.data.favorite);
+          }).catch(()=>{});
+      }
+  }, [pid, token]);
+
+  // Mutations (Giữ nguyên)
+  const addToCartMut = useMutation({
     mutationFn: () => addToCart(pid, qty),
     onSuccess: async () => {
       const cart = await getCart();
       const items = cart?.items || cart?.cartItems || [];
-      const totalQty = items.reduce((s, it) => s + (it?.quantity ?? 0), 0);
-      setCount(totalQty);
+      const total = items.reduce((s, i) => s + (i.quantity || 0), 0);
+      setCount(total);
       toast.success("Đã thêm vào giỏ hàng!");
       qc.invalidateQueries({ queryKey: ["cart"] });
     },
-    onError: (e) => toast.error(e?.response?.data?.error || "Thêm giỏ hàng thất bại"),
+    onError: (e) => toast.error(e?.response?.data?.error || "Lỗi thêm giỏ hàng"),
   });
 
-  const handleAddToCart = () => {
-    if (!token) {
-      toast("Vui lòng đăng nhập để mua hàng", { icon: '🔑' });
-      nav("/admin/login?redirect=/products/" + pid);
-      return;
-    }
-    if (product.stock <= 0){
-      toast.error("Sản phẩm đã hết hàng");
-      return;
-    }
-    if (qty > product.stock){
-      toast.error(`Chỉ còn ${product.stock} sản phẩm trong kho.`);
-      return;
-    }
-    addToCartMutation.mutate();
-  };
-
-  const [rating, setRating] = React.useState(5);
-  const [comment, setComment] = React.useState("");
-  const createMut = useMutation({
+  const createReviewMut = useMutation({
     mutationFn: () => createReview(pid, { rating, comment }),
     onSuccess: () => {
       setComment("");
       setRating(5);
-      toast.success("Cảm ơn bạn đã đánh giá!");
+      toast.success("Cảm ơn đánh giá của bạn!");
       qc.invalidateQueries({ queryKey: ["reviews", pid] });
       qc.invalidateQueries({ queryKey: ["reviews-avg", pid] });
     },
-    onError: (e) => toast.error(e?.response?.data?.error || "Gửi đánh giá thất bại"),
+    onError: (e) => toast.error("Lỗi gửi đánh giá"),
   });
 
-  const delMut = useMutation({
+  const deleteReviewMut = useMutation({
     mutationFn: (rid) => deleteReview(pid, rid),
     onSuccess: () => {
         toast.success("Đã xóa đánh giá");
         qc.invalidateQueries({ queryKey: ["reviews", pid] });
-    },
-    onError: (e) => toast.error(e?.response?.data?.error || "Xoá đánh giá thất bại"),
+    }
   });
 
-  function canDeleteReview(r) {
-    if (!me) return false;
-    const roles = (me.roles || []).map((x) => ("" + x).toUpperCase());
-    return r.userName === me.username || roles.includes("ROLE_ADMIN") || roles.includes("ADMIN");
-  }
+  const toggleFavMut = useMutation({
+      mutationFn: () => toggleFavorite(pid),
+      onSuccess: () => {
+          setIsFav(!isFav);
+          toast.success(!isFav ? "Đã thích ❤️" : "Đã bỏ thích 💔");
+      }
+  });
 
-  if (loadingProduct) return <div className="container section"><div className="loading"></div> Đang tải sản phẩm…</div>;
-  if (errProduct) return <div className="container section">Lỗi tải sản phẩm hoặc sản phẩm không tồn tại.</div>;
-  if (!product) return <div className="container section">Không tìm thấy sản phẩm</div>;
+  const handleAddToCart = () => {
+    if (!token) {
+      toast("Vui lòng đăng nhập", { icon: '🔑' });
+      nav("/admin/login?redirect=/products/" + pid);
+      return;
+    }
+    if (product.stock <= 0) return toast.error("Hết hàng");
+    if (qty > product.stock) return toast.error(`Chỉ còn ${product.stock} phần`);
+    addToCartMut.mutate();
+  };
+
+  const canDeleteReview = (r) => {
+    if (!me) return false;
+    const roles = (me.roles || []).map(x => String(x).toUpperCase());
+    return r.userName === me.username || roles.includes("ROLE_ADMIN");
+  };
+
+  // --- LOGIC SLIDER ---
+  const scroll = (direction) => {
+    if(sliderRef.current){
+        const { current } = sliderRef;
+        const amount = 300; // Khoảng cách mỗi lần bấm
+        current.scrollBy({ left: direction === 'left' ? -amount : amount, behavior: 'smooth' });
+    }
+  };
+
+  // Kéo thả chuột
+  const onMouseDown = (e) => {
+    isDown.current = true;
+    sliderRef.current.style.cursor = 'grabbing';
+    startX.current = e.pageX - sliderRef.current.offsetLeft;
+    scrollLeft.current = sliderRef.current.scrollLeft;
+  };
+  const onMouseLeave = () => {
+    isDown.current = false;
+    if(sliderRef.current) sliderRef.current.style.cursor = 'grab';
+  };
+  const onMouseUp = () => {
+    isDown.current = false;
+    if(sliderRef.current) sliderRef.current.style.cursor = 'grab';
+  };
+  const onMouseMove = (e) => {
+    if(!isDown.current) return;
+    e.preventDefault();
+    const x = e.pageX - sliderRef.current.offsetLeft;
+    const walk = (x - startX.current) * 1.5; // Tốc độ kéo
+    sliderRef.current.scrollLeft = scrollLeft.current - walk;
+  };
+
+  if (loadingProduct) return <div className="container section text-center"><div className="loading"></div></div>;
+  if (!product) return <div className="container section text-center">Không tìm thấy sản phẩm</div>;
 
   return (
-    <div className="container section product-detail fade-in">
-      {/* --- BREADCRUMBS --- */}
-      <div className="breadcrumbs mb-4 muted" style={{fontSize: '0.9rem'}}>
-        <Link to="/" className="text-blue-600 hover:underline">Trang chủ</Link>
-        <span className="mx-2">/</span>
-        <Link to="/menu" className="text-blue-600 hover:underline">Thực đơn</Link>
-        {product.category && (
-            <>
-                <span className="mx-2">/</span>
-                <Link to={`/categories/${product.category.id}`} className="text-blue-600 hover:underline">
-                    {product.category.name}
-                </Link>
-            </>
-        )}
-        <span className="mx-2">/</span>
-        <span className="text-text font-semibold">{product.name}</span>
+    <div className="container section fade-in">
+      <div className="breadcrumbs mb-4 muted text-sm">
+        <Link to="/" className="text-primary hover:underline">Trang chủ</Link> / 
+        <Link to="/menu" className="text-primary hover:underline ml-1">Thực đơn</Link> / 
+        <span className="font-semibold ml-1">{product.name}</span>
       </div>
 
-      <div className="pd-head">
-        <div className="pd-media">
-          {/* Ảnh sản phẩm dùng LazyImage */}
-          <LazyImage
-            src={product.imageUrl}
-            alt={product.name}
-            className="product-detail-img"
-            style={{ borderRadius: 16, width: '100%', aspectRatio: '4/3', objectFit: 'cover' }}
-          />
+      <div className="grid2" style={{ gap: "3rem", alignItems: "start", marginBottom: '4rem' }}>
+        {/* CỘT TRÁI */}
+        <div className="product-detail-img-wrapper" style={{ 
+            borderRadius: 24, overflow: 'hidden', border: '1px solid #eee', 
+            boxShadow: '0 10px 30px -10px rgba(0,0,0,0.1)' 
+        }}>
+          <LazyImage src={product.imageUrl} alt={product.name} style={{ width: "100%", height: "auto", display: "block" }} />
         </div>
-        <div className="pd-info">
-          <h1 className="pd-name">{product.name}</h1>
-          <div className="flex-row gap-3 align-center mb-3">
-             <div className="pd-price">{formatVND(product.price)}</div>
-             {product.stock > 0 ? (
-                 <span className="badge delivering">Còn {product.stock} phần</span>
-             ) : (
-                 <span className="badge cancelled">Hết hàng</span>
-             )}
+
+        {/* CỘT PHẢI */}
+        <div>
+          <div className="flex-row space-between align-start">
+             <div>
+                 <div className="text-primary text-sm font-bold uppercase tracking-wider mb-1">
+                    {product.category?.name || "Healthy Food"}
+                 </div>
+                 <h1 className="h2" style={{ marginBottom: "0.5rem", fontSize: '2rem' }}>{product.name}</h1>
+                 <div className="flex-row align-center gap-2 mb-2">
+                    <div style={{color: '#f59e0b', fontSize:'1.1rem'}}><Stars value={avgRating}/></div>
+                    <span className="muted text-sm">({reviews.length} đánh giá)</span>
+                 </div>
+             </div>
+             
+             <button onClick={() => { if(!token) toast.error("Cần đăng nhập"); else toggleFavMut.mutate(); }} 
+                className="btn-icon"
+                style={{
+                    border: '1px solid #eee', background: 'white', borderRadius: '50%', width: 48, height: 48, 
+                    display:'grid', placeItems:'center', cursor:'pointer', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)'
+                }}>
+                 <FaHeart size={24} color={isFav ? "#ef4444" : "#d1d5db"} />
+             </button>
           </div>
           
-          <div className="pd-avg flex-row align-center gap-2 mb-4" style={{fontSize: '1.1rem'}}>
-            <Stars value={avgRating} /> 
-            <span className="pd-avg-num fw-bold">({avgRating.toFixed(1)})</span>
-            <span className="muted">• {reviews.length} đánh giá</span>
+          <div style={{ fontSize: '2.5rem', fontWeight: 800, color: '#dc2626', margin: '1rem 0', letterSpacing: '-1px' }}>
+             {formatVND(product.price)}
           </div>
 
-          <div className="card" style={{background: '#f8fafc', border: 'none'}}>
-             <div className="fw-bold mb-2">Mô tả món ăn:</div>
-             <p className="pd-desc" style={{lineHeight: 1.6, color: '#475569'}}>{product.description || "Đang cập nhật..."}</p>
-          </div>
-          
-          <div className="pd-cart mt-4 p-4 border rounded-2xl bg-white shadow-sm">
-            <div className="flex-row space-between align-center w-full">
-                <div className="qty-box">
-                <button type="button" onClick={() => setQty((q) => Math.max(1, q - 1))}>−</button>
-                <input className="qty-input" type="number" min="1" value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))} />
-                <button type="button" onClick={() => setQty((q) => q + 1)}>+</button>
-                </div>
-                <div className="text-right">
-                    <div className="muted small">Tạm tính</div>
-                    <div className="fw-bold text-primary">{formatVND(product.price * qty)}</div>
-                </div>
+          {/* DINH DƯỠNG */}
+          {product.calories > 0 && (
+              <div className="nutrition-card mb-4" style={{background: '#f0fdf4', padding: 20, borderRadius: 16, border: '1px dashed #86efac'}}>
+                  <h4 style={{fontSize:'1rem', marginBottom: 12, display:'flex', alignItems:'center', gap: 8, color: '#166534'}}>
+                      🥗 Dinh dưỡng <span className="muted" style={{fontSize:'0.8rem', fontWeight:400}}>(/phần)</span>
+                  </h4>
+                  <div className="grid4" style={{textAlign:'center'}}>
+                      <div className="nutri-item">
+                          <FaFire color="#ea580c" size={24} style={{marginBottom:4}}/>
+                          <div style={{fontWeight:800, color:'#ea580c', fontSize:'1.1rem'}}>{product.calories}</div>
+                          <div className="text-xs muted">Kcal</div>
+                      </div>
+                      <div className="nutri-item">
+                          <FaDna color="#3b82f6" size={24} style={{marginBottom:4}}/>
+                          <div style={{fontWeight:800, color:'#374151', fontSize:'1.1rem'}}>{product.protein || 0}g</div>
+                          <div className="text-xs muted">Protein</div>
+                      </div>
+                      <div className="nutri-item">
+                          <FaBreadSlice color="#eab308" size={24} style={{marginBottom:4}}/>
+                          <div style={{fontWeight:800, color:'#374151', fontSize:'1.1rem'}}>{product.carbs || 0}g</div>
+                          <div className="text-xs muted">Carbs</div>
+                      </div>
+                      <div className="nutri-item">
+                          <FaOilCan color="#8b5cf6" size={24} style={{marginBottom:4}}/>
+                          <div style={{fontWeight:800, color:'#374151', fontSize:'1.1rem'}}>{product.fat || 0}g</div>
+                          <div className="text-xs muted">Fat</div>
+                      </div>
+                  </div>
+              </div>
+          )}
+
+          <p className="mb-4" style={{ lineHeight: 1.8, color: "#4b5563", fontSize: '1.05rem' }}>
+            {product.description || "Chưa có mô tả cho món ăn này."}
+          </p>
+
+          <div className="flex-row gap-3 align-center mb-4" style={{marginTop: '2rem'}}>
+            <div className="qty-control" style={{display:'flex', alignItems:'center', border:'2px solid #e5e7eb', borderRadius: 12, overflow:'hidden'}}>
+                <button onClick={() => setQty(q => Math.max(1, q - 1))} style={{padding:'12px 16px', background:'white', border:'none', cursor:'pointer', fontSize:'1.2rem', fontWeight:'bold'}}>−</button>
+                <span style={{padding:'0 12px', fontWeight:700, minWidth: 40, textAlign:'center'}}>{qty}</span>
+                <button onClick={() => setQty(q => q + 1)} style={{padding:'12px 16px', background:'white', border:'none', cursor:'pointer', fontSize:'1.2rem', fontWeight:'bold'}}>+</button>
             </div>
-            
-            <button
-              className="btn btn-primary w-full mt-3"
-              disabled={addToCartMutation.isPending || product.stock <= 0}
-              onClick={handleAddToCart}
-              style={{ padding: '14px', fontSize: '1rem', opacity: product.stock <= 0 ? 0.5 : 1 }}
-            >
-              {product.stock <= 0 ? "Hết hàng" : addToCartMutation.isPending ? "Đang xử lý..." : "Thêm vào giỏ hàng"}
+            <button className="btn btn-primary shadow-lg" onClick={handleAddToCart} disabled={product.stock <= 0 || addToCartMut.isPending}
+                style={{
+                    flex:1, padding:'16px', borderRadius: 12, fontSize: '1.1rem', fontWeight: 600,
+                    display:'flex', justifyContent:'center', alignItems:'center', gap: 10,
+                    background: product.stock > 0 ? 'var(--primary)' : '#9ca3af', borderColor: 'transparent'
+                }}>
+                <FaShoppingCart /> {addToCartMut.isPending ? "Đang xử lý..." : product.stock > 0 ? "Thêm vào giỏ hàng" : "Tạm hết hàng"}
             </button>
           </div>
         </div>
       </div>
 
-      {/* --- SẢN PHẨM LIÊN QUAN --- */}
+      {/* --- SẢN PHẨM LIÊN QUAN (SLIDER) --- */}
       {relatedProducts.length > 0 && (
-        <div className="related-products mt-5 pt-5 border-top">
-            <h2 className="h2 mb-4">Có thể bạn sẽ thích</h2>
-            <div className="grid4">
-                {relatedProducts.map(p => (
-                    <div key={p.id} className="card product-card card-hover">
-                        <Link to={`/products/${p.id}`}>
-                            <div className="product-thumb-wrapper">
-                                <LazyImage src={p.imageUrl} alt={p.name} />
+        <div className="related-section mb-5">
+            <h2 className="h3 mb-4 border-l-4 border-primary pl-3">Có thể bạn sẽ thích</h2>
+            
+            <div className="slider-wrapper" style={{ position: 'relative', padding: '0 48px' }}>
+                {/* Nút Prev */}
+                <button onClick={() => scroll('left')} className="slider-nav prev" style={{
+                    position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)',
+                    width: 40, height: 40, borderRadius: '50%', background: '#fff', border: '1px solid #ddd',
+                    boxShadow: '0 4px 10px rgba(0,0,0,0.1)', cursor: 'pointer', zIndex: 10,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                    <FaChevronLeft />
+                </button>
+
+                {/* Container cuộn */}
+                <div 
+                    ref={sliderRef}
+                    className="scrolling-track hide-scrollbar"
+                    onMouseDown={onMouseDown}
+                    onMouseLeave={onMouseLeave}
+                    onMouseUp={onMouseUp}
+                    onMouseMove={onMouseMove}
+                    style={{
+                        display: 'flex', 
+                        gap: '1.5rem', 
+                        overflowX: 'auto',
+                        paddingBottom: '1rem',
+                        cursor: 'grab',
+                        scrollBehavior: 'smooth',
+                        userSelect: 'none' // Chống bôi đen khi kéo
+                    }}
+                >
+                    {relatedProducts.map(p => (
+                        <div key={p.id} className="card product-card card-hover" style={{
+                            minWidth: '260px', width: '260px', flexShrink: 0
+                        }}>
+                            <Link to={`/products/${p.id}`} draggable="false"> {/* draggable=false để không bị kẹt khi kéo ảnh */}
+                                <div className="product-thumb-wrapper" style={{height: 180}}>
+                                    <LazyImage src={p.imageUrl} alt={p.name} style={{width:'100%', height:'100%', objectFit:'cover', pointerEvents: 'none'}}/>
+                                </div>
+                            </Link>
+                            <div className="product-info p-3">
+                                <Link to={`/products/${p.id}`} className="product-name font-bold block mb-1 text-truncate">{p.name}</Link>
+                                <div className="product-price text-red-600 font-bold">{formatVND(p.price)}</div>
                             </div>
-                        </Link>
-                        <div className="product-info">
-                            <Link to={`/products/${p.id}`} className="product-name">{p.name}</Link>
-                            <div className="product-price">{formatVND(p.price)}</div>
                         </div>
-                        <div className="card-actions">
-                            <button className="btn btn-primary" onClick={() => {
-                                // Add to cart logic nhanh tại đây (nếu muốn) hoặc điều hướng vào trang chi tiết
-                                addToCart(p.id, 1).then(() => {
-                                    toast.success("Đã thêm!");
-                                    getCart().then(c => {
-                                        const total = (c?.items || []).reduce((s,i)=>s+(i.quantity||0),0);
-                                        setCount(total);
-                                    });
-                                }).catch(()=>toast.error("Lỗi thêm"));
-                            }}>Thêm</button>
-                            <Link to={`/products/${p.id}`} className="btn btn-ghost">Xem</Link>
-                        </div>
-                    </div>
-                ))}
+                    ))}
+                </div>
+
+                {/* Nút Next */}
+                <button onClick={() => scroll('right')} className="slider-nav next" style={{
+                    position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)',
+                    width: 40, height: 40, borderRadius: '50%', background: '#fff', border: '1px solid #ddd',
+                    boxShadow: '0 4px 10px rgba(0,0,0,0.1)', cursor: 'pointer', zIndex: 10,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                    <FaChevronRight />
+                </button>
             </div>
         </div>
       )}
 
-      {/* --- ĐÁNH GIÁ --- */}
-      <div className="pd-reviews mt-5">
-        <h2 className="h2">Đánh giá từ khách hàng</h2>
-        <div className="grid2" style={{alignItems: 'start'}}>
-            {/* Form đánh giá */}
-            <div className="review-form card" style={{background: '#f9fafb'}}>
-            {!token ? (
-                <div className="muted text-center py-4">Vui lòng <Link to="/admin/login" className="text-primary fw-bold">đăng nhập</Link> để viết đánh giá.</div>
-            ) : (
-                <form onSubmit={(e) => { e.preventDefault(); createMut.mutate(); }}>
-                <h4 style={{marginTop:0}}>Viết đánh giá của bạn</h4>
-                <div className="flex-row gap-2 mb-3">
-                    <label>Xếp hạng:</label>
-                    <select className="input" style={{width: 'auto'}} value={rating} onChange={(e) => setRating(Number(e.target.value))}>
-                        <option value="5">5 ★ Tuyệt vời</option>
-                        <option value="4">4 ★ Tốt</option>
-                        <option value="3">3 ★ Bình thường</option>
-                        <option value="2">2 ★ Tệ</option>
-                        <option value="1">1 ★ Rất tệ</option>
-                    </select>
-                </div>
-                <textarea
-                    className="input" rows="3"
-                    placeholder="Chia sẻ cảm nhận của bạn về món ăn này..."
-                    value={comment} onChange={(e) => setComment(e.target.value)}
-                    style={{marginBottom: 10}}
-                />
-                <button className="btn btn-primary w-full" disabled={createMut.isPending}>
-                    {createMut.isPending ? "Đang gửi..." : "Gửi đánh giá"}
-                </button>
-                </form>
-            )}
-            </div>
+      {/* --- REVIEW --- */}
+      <div className="reviews-section mt-5 pt-5" style={{borderTop: '1px solid #eee'}}>
+          <h3 className="h3 mb-4">Đánh giá khách hàng ({reviews.length})</h3>
+          <div className="grid2" style={{gap: '3rem', alignItems:'start'}}>
+              <div className="review-list" style={{maxHeight: 500, overflowY: 'auto', paddingRight: 10}}>
+                  {reviews.length === 0 ? (
+                      <div className="muted font-italic">Chưa có đánh giá nào.</div>
+                  ) : (
+                      reviews.map((rv) => (
+                          <div key={rv.id} className="review-item mb-4 pb-3" style={{borderBottom:'1px solid #f3f4f6'}}>
+                              <div className="flex-row space-between">
+                                  <div className="font-bold text-gray-800">{rv.userName || "Khách hàng"}</div>
+                                  <div className="text-xs muted">{rv.createdAt ? new Date(rv.createdAt).toLocaleDateString('vi-VN') : ""}</div>
+                              </div>
+                              <div className="flex-row mb-1 text-yellow-400" style={{fontSize: '0.9rem'}}><Stars value={rv.rating} /></div>
+                              <p style={{margin:0, color:'#374151'}}>{rv.comment}</p>
+                              {canDeleteReview(rv) && (
+                                <button onClick={() => { if(confirm('Xóa?')) deleteReviewMut.mutate(rv.id) }}
+                                    className="text-red-500 text-xs hover:underline mt-1 flex-row align-center gap-1"
+                                    style={{background:'transparent', border:'none', cursor:'pointer'}}>
+                                    <FaTrash/> Xóa
+                                </button>
+                              )}
+                          </div>
+                      ))
+                  )}
+              </div>
 
-            {/* List đánh giá */}
-            <div className="review-list-container">
-                {loadingReviews ? (
-                <div>Đang tải đánh giá…</div>
-                ) : reviews.length === 0 ? (
-                <div className="muted card p-4 text-center">Chưa có đánh giá nào. Hãy là người đầu tiên!</div>
-                ) : (
-                <ul className="review-list">
-                    {reviews.map((r) => (
-                    <li key={r.id} className="review-item">
-                        <div className="review-head">
-                        <div style={{fontWeight: 600}}>{r.userName || "Khách hàng"}</div>
-                        <span className="review-time muted" style={{fontSize: '0.8rem'}}>
-                            {r.createdAt ? new Date(r.createdAt).toLocaleDateString("vi-VN") : ""}
-                        </span>
-                        </div>
-                        <div className="review-rating" style={{color: '#f59e0b', fontSize: '0.9rem'}}>
-                        <Stars value={r.rating} />
-                        </div>
-                        {r.comment && <div className="review-comment" style={{marginTop: 4, color: '#334155'}}>{r.comment}</div>}
-                        {canDeleteReview(r) && (
-                        <button
-                            className="btn btn-ghost btn-sm text-red"
-                            onClick={() => delMut.mutate(r.id)}
-                            disabled={delMut.isPending}
-                            style={{marginTop: 8, fontSize: '0.75rem', padding: '4px 8px'}}
-                        >
-                            Xoá
-                        </button>
-                        )}
-                    </li>
-                    ))}
-                </ul>
-                )}
-            </div>
-        </div>
+              <div className="review-form card p-4" style={{background: '#f9fafb', border:'none'}}>
+                  {token ? (
+                      <form onSubmit={(e) => { e.preventDefault(); createReviewMut.mutate(); }}>
+                          <h4 className="h5 mb-3">Viết đánh giá của bạn</h4>
+                          <div className="mb-3">
+                              <label className="label">Bạn chấm mấy sao?</label>
+                              <div className="flex-row gap-2">
+                                  {[1, 2, 3, 4, 5].map((star) => (
+                                      <button key={star} type="button" onClick={() => setRating(star)}
+                                          style={{background:'transparent', border:'none', cursor:'pointer', padding:0}}>
+                                          {star <= rating ? <FaStar size={28} color="#eab308"/> : <FaRegStar size={28} color="#9ca3af"/>}
+                                      </button>
+                                  ))}
+                              </div>
+                          </div>
+                          <div className="mb-3">
+                              <label className="label">Nội dung</label>
+                              <textarea className="input" rows="3" placeholder="Món này thế nào?..." value={comment} onChange={e => setComment(e.target.value)} required />
+                          </div>
+                          <button className="btn btn-primary w-full" disabled={createReviewMut.isPending}>
+                              {createReviewMut.isPending ? "Đang gửi..." : "Gửi đánh giá"}
+                          </button>
+                      </form>
+                  ) : (
+                      <div className="text-center py-4">
+                          <p className="mb-3">Vui lòng đăng nhập để viết đánh giá</p>
+                          <button onClick={() => nav("/admin/login")} className="btn btn-outline btn-sm">Đăng nhập ngay</button>
+                      </div>
+                  )}
+              </div>
+          </div>
       </div>
+
+      <style>{`
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .slider-nav:hover { background: var(--primary); color: white; border-color: var(--primary); }
+      `}</style>
     </div>
   );
 }
 
 function Stars({ value = 0 }) {
   const full = Math.round(Number(value) || 0);
-  return (
-    <span className="rating-stars" title={`${value}/5`}>
-      {"★".repeat(full)}
-      {"☆".repeat(5 - full)}
-    </span>
-  );
+  return <>{ "★".repeat(full) }{ "☆".repeat(5 - full) }</>;
 }
