@@ -115,7 +115,22 @@ export default function ChatWidget() {
         </div>
       )}
       <style>{`
-        .chat-widget { position: fixed; bottom: 20px; right: 20px; width: 320px; height: 450px; display: flex; flex-direction: column; z-index: 1000; padding: 0; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+        /* SỬA TẠI ĐÂY: bottom: 100px (thay vì 20px) */
+        .chat-widget { 
+          position: fixed; 
+          bottom: 100px; 
+          right: 20px; 
+          width: 320px; 
+          height: 450px; 
+          display: flex; 
+          flex-direction: column; 
+          z-index: 1000; 
+          padding: 0; 
+          overflow: hidden; 
+          box-shadow: 0 10px 25px rgba(0,0,0,0.2); 
+          background: #fff;
+          border-radius: 12px;
+        }
         .chat-header { background: var(--primary); color: #fff; padding: 12px; display: flex; justify-content: space-between; font-weight: 700; }
         .btn-close { background: none; border: none; color: #fff; font-size: 20px; cursor: pointer; }
         .chat-body { flex: 1; padding: 12px; overflow-y: auto; background: #f9fafb; display: flex; flex-direction: column; gap: 8px; }

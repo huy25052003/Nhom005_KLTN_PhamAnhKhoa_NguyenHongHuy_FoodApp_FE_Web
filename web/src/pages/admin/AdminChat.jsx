@@ -120,7 +120,11 @@ export default function AdminChatPage() {
             
             <div style={{ flex: 1, padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
               {msgs.map((m, i) => {
-                const isCustomer = m.sender?.id === selectedConv.customer?.id;
+                const msgSenderId = m.sender?.id || m.senderId;
+                const customerId = selectedConv.customer?.id;
+                
+                // So sánh ID (ép kiểu Number để tránh lỗi string vs int)
+                const isCustomer = Number(msgSenderId) === Number(customerId);
                 return (
                   <div key={i} style={{ 
                     alignSelf: isCustomer ? 'flex-start' : 'flex-end',
@@ -135,7 +139,7 @@ export default function AdminChatPage() {
                       {m.content}
                     </div>
                     <div className="muted small" style={{ textAlign: isCustomer ? 'left' : 'right', marginTop: 2 }}>
-                      {new Date(m.createdAt).toLocaleTimeString()}
+                      {m.createdAt ? new Date(m.createdAt).toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'}) : ''}
                     </div>
                   </div>
                 );
