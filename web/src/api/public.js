@@ -1,10 +1,9 @@
 import http from "../lib/http";
 
 export async function getFeaturedProducts(limit = 8) {
-  // Đổi thành /products/public để chỉ lấy món đang hiện
-  const res = await http.get("/products/public");
-  const list = Array.isArray(res.data) ? res.data : [];
-  return list.slice(0, limit);
+  // CẬP NHẬT: Gọi API /products/top thay vì /products/public
+  const res = await http.get("/products/top", { params: { limit } });
+  return Array.isArray(res.data) ? res.data : [];
 }
 
 export async function getCategoriesPublic(limit = 6) {

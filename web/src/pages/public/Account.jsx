@@ -7,7 +7,7 @@ import EmailVerifyModal from "../../component/EmailVerifyModal";
 import { 
   FaUser, FaHeartbeat, FaMapMarkedAlt, FaSave, 
   FaMars, FaVenus, FaCalculator, FaBullseye,
-  FaCrown, FaGift, FaCheckCircle, FaExclamationCircle // Thêm icon
+  FaCrown, FaGift 
 } from "react-icons/fa";
 
 const API_HOST = "https://esgoo.net/api-tinhthanh-new";
@@ -24,17 +24,17 @@ export default function AccountProfilePage() {
   const [form, setForm] = useState({
     fullName: "", birthDate: "", gender: "MALE",
     heightCm: "", weightKg: "", activityLevel: "MODERATE",
-    goal: "MAINTAIN", targetCalories: "", phone: "",
+    goal: "MAINTAIN", targetCalories: "", 
+    phone: "", email: "", 
     shippingPhone: "", pId: "", wId: "", houseNumber: "", note: ""
   });
 
-  // --- LOGIC HẠNG THÀNH VIÊN (Cập nhật cho CSS Custom) ---
+  // --- LOGIC HẠNG THÀNH VIÊN ---
   const points = user?.points || 0;
   let rank = "Thành viên Mới";
   let nextRank = "Bạc";
   let progress = Math.min(100, (points / 100) * 100);
   
-  // Thay vì biến 'color', ta dùng biến 'rankClass' để khớp với CSS
   let rankClass = "rank-bronze"; 
   let icon = "🌱";
   let benefit = "Giảm 1% đơn hàng";
@@ -54,7 +54,6 @@ export default function AccountProfilePage() {
       rankClass = "rank-silver"; icon = "🥈";
       benefit = "Giảm 3% đơn hàng";
   }
-  // ------------------------------------------------------
 
   // --- TÍNH TDEE ---
   const estimatedTDEE = useMemo(() => {
@@ -90,7 +89,11 @@ export default function AccountProfilePage() {
         if (provRes.error === 0) setProvinces(provRes.data);
         if (userData) {
             setUser(userData);
-            setForm(prev => ({ ...prev, phone: userData.phone || shipping?.phone || "" }));
+            setForm(prev => ({ 
+                ...prev, 
+                phone: userData.phone || shipping?.phone || "",
+                email: userData.email || ""
+            }));
         }
 
         setForm(prev => ({
@@ -167,13 +170,9 @@ export default function AccountProfilePage() {
          </button>
       </div>
 
-      {/* --- THẺ THÀNH VIÊN (ĐÃ SỬA CLASS THEO CSS CỦA BẠN) --- */}
+      {/* --- THẺ THÀNH VIÊN --- */}
       <div className={`membership-card ${rankClass}`}>
-          {/* Icon nền chìm */}
-          <div className="card-bg-icon">
-              <FaCrown />
-          </div>
-
+          <div className="card-bg-icon"><FaCrown /></div>
           <div className="card-content">
               <div className="card-left">
                   <div className="card-label">Thẻ thành viên FoodApp</div>
@@ -181,77 +180,55 @@ export default function AccountProfilePage() {
                       <span className="rank-icon" style={{marginRight: 8}}>{icon}</span> 
                       {rank}
                   </div>
-                  <div className="card-points">
-                       <span className="points-num">{points}</span> điểm tích lũy
-                  </div>
+                  <div className="card-points"><span className="points-num">{points}</span> điểm</div>
               </div>
-              
               <div className="card-right">
-                  <div className="progress-label">
-                      {nextRank !== "Max" ? `Tiến độ lên hạng ${nextRank}` : "Đẳng cấp cao nhất"}
-                  </div>
-                  <div className="progress-bar-bg">
-                      <div className="progress-bar-fill" style={{ width: `${progress}%` }}></div>
-                  </div>
-                  <div className="next-points">
-                      {nextRank !== "Max" ? `Cần thêm ${points >= 2000 ? 0 : (points < 100 ? 100 - points : (points < 500 ? 500 - points : 2000 - points))} điểm` : "Xin chúc mừng!"}
-                  </div>
+                  <div className="progress-label">{nextRank !== "Max" ? `Tiến độ lên ${nextRank}` : "Đẳng cấp cao nhất"}</div>
+                  <div className="progress-bar-bg"><div className="progress-bar-fill" style={{ width: `${progress}%` }}></div></div>
               </div>
-          </div>
-          
-          <div className="card-footer">
-               <div className="glass-btn">
-                  <FaCrown className="text-yellow-200"/> Quyền lợi: {benefit}
-               </div>
-               <div className="glass-btn" style={{opacity: 0.8}}>
-                  <FaGift /> Đổi quà (Sắp ra mắt)
-               </div>
           </div>
       </div>
-      {/* -------------------------------------------------------- */}
 
-      <div className="grid-2x2-balanced" style={{alignItems: 'start'}}>
+      <div className="grid-2x2-balanced" style={{alignItems: 'start', gap: '24px'}}>
         
         {/* CỘT TRÁI: TÀI KHOẢN & GIAO HÀNG */}
         <div className="vstack gap-3">
             <div className="profile-card">
-                <h3 className="flex-row gap-2"><FaUser className="text-blue-600"/> Thông tin tài khoản</h3>
+                <h3 className="flex-row gap-2 mb-3"><FaUser className="text-blue-600"/> Thông tin tài khoản</h3>
                 
-                <div className="field mb-3">
-                    <label className="label">Email</label>
-                    <div className="input-group">
-                        <input className="input" value={user?.email} disabled />
-                        {user?.isEmailVerified ? 
-                           <span className="addon success">✓ Verified</span> : 
-                           <button onClick={()=>setEmailModalOpen(true)} className="addon btn-warning">Verify</button>
-                        }
+                {/* Gom nhóm Email & SĐT thành 2 cột */}
+                <div className="grid2 mb-2">
+                    <div className="field">
+                        <label className="label">Email</label>
+                        <div className="input-group">
+                            <input className="input" name="email" value={form.email} onChange={onChange} disabled={user?.isEmailVerified} placeholder="Nhập email..." />
+                            {!user?.isEmailVerified && <button onClick={()=>setEmailModalOpen(true)} className="addon btn-warning">Verify</button>}
+                        </div>
                     </div>
-                </div>
-
-                <div className="field mb-3">
-                    <label className="label">Số điện thoại</label>
-                    <div className="input-group">
-                        <input className="input" value={form.phone} disabled placeholder="Chưa có SĐT" />
-                        {user?.isPhoneVerified ? 
-                           <span className="addon success">✓ Verified</span> : 
-                           <button onClick={()=>setPhoneModalOpen(true)} className="addon btn-primary">Verify</button>
-                        }
+                    <div className="field">
+                        <label className="label">Số điện thoại</label>
+                        <div className="input-group">
+                            <input className="input" name="phone" value={form.phone} onChange={onChange} disabled={user?.isPhoneVerified} placeholder="09..." />
+                            {!user?.isPhoneVerified && <button onClick={()=>setPhoneModalOpen(true)} className="addon btn-primary">Verify</button>}
+                        </div>
                     </div>
                 </div>
 
                 <div className="field">
                     <label className="label">Họ tên hiển thị</label>
-                    <input className="input" name="fullName" value={form.fullName} onChange={onChange} placeholder="Nhập tên của bạn..." />
+                    <input className="input" name="fullName" value={form.fullName} onChange={onChange} placeholder="Tên hiển thị..." />
                 </div>
             </div>
 
             <div className="profile-card">
-                <h3 className="flex-row gap-2"><FaMapMarkedAlt className="text-orange-600"/> Địa chỉ giao hàng</h3>
-                <div className="field mb-3">
-                    <label className="label">SĐT Nhận hàng</label>
-                    <input className="input" name="shippingPhone" value={form.shippingPhone} onChange={onChange} />
-                </div>
-                <div className="grid2 mb-3">
+                <h3 className="flex-row gap-2 mb-3"><FaMapMarkedAlt className="text-orange-600"/> Địa chỉ mặc định</h3>
+                
+                {/* Gom SĐT nhận hàng & Tỉnh thành 2 cột */}
+                <div className="grid2 mb-2">
+                    <div className="field">
+                        <label className="label">SĐT Nhận hàng</label>
+                        <input className="input" name="shippingPhone" value={form.shippingPhone} onChange={onChange} placeholder="SĐT người nhận" />
+                    </div>
                     <div className="field">
                         <label className="label">Tỉnh / Thành phố</label>
                         <select className="select" name="pId" value={form.pId} onChange={onChange}>
@@ -259,6 +236,10 @@ export default function AccountProfilePage() {
                             {provinces.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
                         </select>
                     </div>
+                </div>
+
+                {/* Gom Phường & Số nhà thành 2 cột */}
+                <div className="grid2">
                     <div className="field">
                         <label className="label">Phường / Xã</label>
                         <select className="select" name="wId" value={form.wId} onChange={onChange} disabled={!form.pId}>
@@ -266,15 +247,15 @@ export default function AccountProfilePage() {
                             {wards.map(w => <option key={w.id} value={w.id}>{w.full_name}</option>)}
                         </select>
                     </div>
-                </div>
-                <div className="field">
-                    <label className="label">Số nhà, Tên đường</label>
-                    <textarea className="input" rows="2" name="houseNumber" value={form.houseNumber} onChange={onChange} placeholder="VD: 123 Nguyễn Huệ..." />
+                    <div className="field">
+                        <label className="label">Số nhà, Tên đường</label>
+                        <input className="input" name="houseNumber" value={form.houseNumber} onChange={onChange} placeholder="Số nhà, đường..." />
+                    </div>
                 </div>
             </div>
         </div>
 
-        {/* CỘT PHẢI: HỒ SƠ SỨC KHỎE & MỤC TIÊU (TDEE) */}
+        {/* CỘT PHẢI: HỒ SƠ SỨC KHỎE */}
         <div className="profile-card" style={{borderTop: '4px solid #10b981'}}>
             <h3 className="flex-row gap-2 mb-4"><FaHeartbeat className="text-red-500"/> Chỉ số Sức khỏe</h3>
             
@@ -285,14 +266,12 @@ export default function AccountProfilePage() {
                 </div>
                 <div className="field">
                     <label className="label">Giới tính</label>
-                    <div className="flex-row gap-4 mt-2">
+                    <div className="flex-row gap-4 mt-2 h-full align-center">
                         <label className="flex-row gap-2 cursor-pointer">
-                            <input type="radio" name="gender" value="MALE" checked={form.gender === 'MALE'} onChange={onChange} />
-                            <span className="flex-row gap-1"><FaMars color="#3b82f6"/> Nam</span>
+                            <input type="radio" name="gender" value="MALE" checked={form.gender === 'MALE'} onChange={onChange} /> Nam
                         </label>
                         <label className="flex-row gap-2 cursor-pointer">
-                            <input type="radio" name="gender" value="FEMALE" checked={form.gender === 'FEMALE'} onChange={onChange} />
-                            <span className="flex-row gap-1"><FaVenus color="#ec4899"/> Nữ</span>
+                            <input type="radio" name="gender" value="FEMALE" checked={form.gender === 'FEMALE'} onChange={onChange} /> Nữ
                         </label>
                     </div>
                 </div>
@@ -301,11 +280,11 @@ export default function AccountProfilePage() {
             <div className="grid2 mb-3">
                 <div className="field">
                     <label className="label">Chiều cao (cm)</label>
-                    <input type="number" className="input" name="heightCm" value={form.heightCm} onChange={onChange} placeholder="VD: 170" />
+                    <input type="number" className="input" name="heightCm" value={form.heightCm} onChange={onChange} placeholder="170" />
                 </div>
                 <div className="field">
                     <label className="label">Cân nặng (kg)</label>
-                    <input type="number" className="input" name="weightKg" value={form.weightKg} onChange={onChange} placeholder="VD: 65" />
+                    <input type="number" className="input" name="weightKg" value={form.weightKg} onChange={onChange} placeholder="65" />
                 </div>
             </div>
 
@@ -319,11 +298,10 @@ export default function AccountProfilePage() {
                         <option value="ACTIVE">Năng động (6-7 buổi)</option>
                     </select>
                 </div>
-                
                 <div className="field">
-                    <label className="label flex-row gap-1"><FaBullseye color="#e11d48"/> Mục tiêu</label>
+                    <label className="label">Mục tiêu</label>
                     <select className="select" name="goal" value={form.goal} onChange={onChange} 
-                        style={{borderColor: form.goal === 'MAINTAIN' ? '#e5e7eb' : (form.goal === 'LOSE' ? '#22c55e' : '#f59e0b'), borderWidth: 2}}>
+                        style={{borderColor: form.goal === 'MAINTAIN' ? '#e5e7eb' : (form.goal === 'LOSE' ? '#22c55e' : '#f59e0b')}}>
                         <option value="LOSE">📉 Giảm cân</option>
                         <option value="MAINTAIN">⚖️ Giữ cân</option>
                         <option value="GAIN">📈 Tăng cân</option>
@@ -332,36 +310,24 @@ export default function AccountProfilePage() {
             </div>
 
             {/* Box TDEE Calculator */}
-            <div className="bg-green-50 p-4 rounded-lg border border-green-200 mb-4 text-center">
+            <div className="bg-green-50 p-3 rounded-lg border border-green-200 mb-4 text-center">
                 <div className="text-sm text-green-800 font-bold flex-row justify-center gap-2">
-                    <FaCalculator /> Nhu cầu Calo khuyến nghị
+                    <FaCalculator /> Nhu cầu Calo/ngày
                 </div>
-                <div className="text-3xl font-black text-green-600 my-2">
-                    {estimatedTDEE > 0 ? estimatedTDEE : "--"} <span className="text-sm font-normal text-gray-500">kcal/ngày</span>
-                </div>
-                <div className="text-xs text-gray-500 italic">
-                    {form.goal === "LOSE" && "*Đã trừ 500 kcal để giảm cân an toàn."}
-                    {form.goal === "GAIN" && "*Đã cộng 500 kcal để tăng cân hiệu quả."}
-                    {form.goal === "MAINTAIN" && "*Mức năng lượng để duy trì cân nặng."}
+                <div className="text-3xl font-black text-green-600 my-1">
+                    {estimatedTDEE > 0 ? estimatedTDEE : "--"} <span className="text-sm font-normal text-gray-500">kcal</span>
                 </div>
             </div>
             
             <div className="field">
-                <label className="label">Target Calories / ngày (Tùy chỉnh)</label>
-                <input 
-                    type="number" 
-                    className="input" 
-                    name="targetCalories" 
-                    value={form.targetCalories} 
-                    onChange={onChange} 
-                    placeholder={`Mặc định: ${estimatedTDEE || 2000}`} 
-                />
+                <label className="label">Target Calories (Tùy chỉnh)</label>
+                <input type="number" className="input" name="targetCalories" value={form.targetCalories} onChange={onChange} placeholder={`Mặc định: ${estimatedTDEE || 2000}`} />
             </div>
         </div>
       </div>
 
-      <PhoneVerifyModal isOpen={phoneModalOpen} onClose={() => setPhoneModalOpen(false)} phoneNumber={form.phone} onSuccess={(u)=>{setUser(u); setForm(p=>({...p, phone: u.phone}))}} />
-      <EmailVerifyModal isOpen={emailModalOpen} onClose={() => setEmailModalOpen(false)} email={user?.email} onSuccess={(u)=>setUser(u)} />
+      <PhoneVerifyModal isOpen={phoneModalOpen} onClose={() => setPhoneModalOpen(false)} phoneNumber={form.phone} onSuccess={(u)=>{ setUser(u); setForm(p=>({...p, phone: u.phone})); }} />
+      <EmailVerifyModal isOpen={emailModalOpen} onClose={() => setEmailModalOpen(false)} email={form.email} onSuccess={(u)=>{ setUser(u); setForm(p=>({...p, email: u.email})); }} />
     </div>
   );
 }

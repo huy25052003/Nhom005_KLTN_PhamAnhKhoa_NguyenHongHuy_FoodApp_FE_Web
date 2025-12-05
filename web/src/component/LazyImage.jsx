@@ -25,8 +25,12 @@ export default function LazyImage({ src, alt, className, style, onClick }) {
         src={error ? "/placeholder.jpg" : src}
         alt={alt}
         style={{ 
-           width: '100%', height: '100%', objectFit: 'cover', 
-           opacity: loaded ? 1 : 0, transition: 'opacity 0.4s ease-in-out',
+           width: '100%', 
+           height: '100%', 
+           objectFit: 'cover',       // Vẫn giữ cover để không bị méo ảnh
+           objectPosition: 'center', // THÊM: Căn giữa ảnh
+           opacity: loaded ? 1 : 0, 
+           transition: 'opacity 0.4s ease-in-out',
            display: 'block'
         }}
         onLoad={() => setLoaded(true)}
