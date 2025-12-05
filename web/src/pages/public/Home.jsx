@@ -189,7 +189,7 @@ export default function HomePage() {
             <h1>Kế hoạch bữa ăn hàng tuần cho lối sống lành mạnh</h1>
             <p>Trải nghiệm bữa ăn sạch tươi ngon, giàu dinh dưỡng — lên plan theo mục tiêu của bạn.</p>
             <div className="hero-actions">
-              <Link to="/order" className="btn btn-primary">Đặt ngay</Link>
+              <Link to="/menu" className="btn btn-primary">Đặt ngay</Link>
               <button onClick={open} className="btn btn-ghost">Tư vấn</button>
             </div>
             <ul className="hero-usps">
