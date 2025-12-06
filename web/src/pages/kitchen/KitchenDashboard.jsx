@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getKitchenOrders } from "../../api/orders.js";
+// Import thêm hàm finishKitchenOrder
+import { getKitchenOrders, finishKitchenOrder } from "../../api/orders.js";
 import http from "../../lib/http"; 
 import SockJS from "sockjs-client";
 import { Client } from "@stomp/stompjs";
 import { useAuth } from "../../stores/auth.js";
-import { FaPlay, FaCheck, FaUtensils, FaClock } from "react-icons/fa";
+// Import thêm icon FaCheckDouble
+import { FaPlay, FaCheck, FaUtensils, FaClock, FaCheckDouble } from "react-icons/fa";
 
 const WS_URL = import.meta.env.VITE_WS_URL;
 
@@ -21,7 +23,7 @@ export default function KitchenDashboard() {
     refetchInterval: 5000, 
   });
 
-  // 2. Mutation
+  // 2. Các Mutation cũ (Update Item, Claim Order)
   const { mutate: updateItem } = useMutation({
     mutationFn: ({ itemId, status }) => 
       http.put(`/kitchen/items/${itemId}/status`, null, { params: { status } }),
@@ -34,7 +36,17 @@ export default function KitchenDashboard() {
     onError: (e) => alert(e?.response?.data?.message || "Lỗi nhận đơn"),
   });
 
-  // 3. Socket
+  // --- 3. MUTATION MỚI: XONG ĐƠN (FINISH) ---
+  const { mutate: finishOrder, isPending: finishing } = useMutation({
+    mutationFn: (orderId) => finishKitchenOrder(orderId),
+    onSuccess: () => {
+        // Refresh lại dữ liệu sau khi xong
+        qc.invalidateQueries(["kitchenOrders"]);
+    },
+    onError: (e) => alert(e?.response?.data?.message || "Lỗi trả món"),
+  });
+
+  // 4. Socket (Giữ nguyên)
   useEffect(() => {
     const client = new Client({
       webSocketFactory: () => new SockJS(WS_URL),
@@ -48,22 +60,15 @@ export default function KitchenDashboard() {
     return () => client.deactivate();
   }, [token, qc]);
 
-  // 4. Logic hiển thị
+  // 5. Logic hiển thị (Giữ nguyên)
   const { aggregated, displayOrders } = useMemo(() => {
     const aggMap = {};
-    
-    // --- SỬA ĐỔI QUAN TRỌNG: BỎ PENDING ---
-    // Chỉ lấy CONFIRMED (để nhận) và PREPARING (đang làm)
     const relevantOrders = orders.filter(o => ['CONFIRMED', 'PREPARING'].includes(o.status));
-    
-    // Sắp xếp: Cũ nhất lên đầu
     const sortedOrders = relevantOrders.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
     sortedOrders.forEach(order => {
         order.items.forEach(item => {
             if (item.status === 'DONE') return; 
-            
-            // Chỉ tính tổng vào header khi món ĐANG NẤU (COOKING) - tức là đã nhận đơn
             if (item.status === 'COOKING') {
                 const pid = item.product?.id;
                 if (!aggMap[pid]) aggMap[pid] = { id: pid, name: item.product?.name, total: 0 };
@@ -81,7 +86,7 @@ export default function KitchenDashboard() {
 
   return (
     <div className="fade-in">
-      {/* Header Tổng hợp */}
+      {/* Header Tổng hợp (Giữ nguyên) */}
       <div className="kds-header-card">
         <div className="flex-row space-between align-center">
             <h3 className="h3" style={{margin:0, color: 'var(--secondary)', display:'flex', alignItems:'center', gap:8}}>
@@ -104,6 +109,7 @@ export default function KitchenDashboard() {
         </div>
       </div>
 
+      {/* Grid Ticket */}
       <div className="kds-tickets-grid">
         {displayOrders.length === 0 ? (
             <div className="muted text-center w-full" style={{gridColumn: '1/-1', padding: 40}}>
@@ -111,37 +117,55 @@ export default function KitchenDashboard() {
             </div>
         ) : (
             displayOrders.map(order => {
-                // Điều kiện hiện nút nhận: Đơn có món chưa nhận (PENDING)
-                // Vì đã lọc bỏ đơn PENDING ở trên, nên ở đây chủ yếu check cho đơn CONFIRMED
+                // Điều kiện hiện nút Nhận đơn: Có món PENDING
                 const canClaim = order.items.some(i => i.status === 'PENDING');
+                
+                // Điều kiện hiện nút Trả món (Xong): Có món COOKING
+                const canFinish = order.items.some(i => i.status === 'COOKING');
                 
                 return (
                   <div key={order.id} className={`ticket-card ${order.status}`}>
                     
-                    {/* --- HEADER TICKET --- */}
                     <div className="ticket-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        
                         <div style={{ flex: 1 }}>
                             <div className="ticket-id" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                                 #{order.id}
                                 
-                                {/* --- NÚT NHẬN ĐƠN (BÊN PHẢI ID) --- */}
+                                {/* NÚT NHẬN ĐƠN (CLAIM) */}
                                 {canClaim && (
                                     <button 
                                         className="btn btn-primary btn-sm" 
                                         style={{
                                             padding: '4px 10px', fontSize: '0.75rem', 
-                                            background: '#2563eb', border: 'none', 
-                                            borderRadius: '20px', 
+                                            background: '#2563eb', border: 'none', borderRadius: '20px', 
                                             boxShadow: '0 2px 5px rgba(37, 99, 235, 0.3)',
-                                            animation: 'pulse 2s infinite',
-                                            whiteSpace: 'nowrap',
+                                            animation: 'pulse 2s infinite', whiteSpace: 'nowrap',
                                             display: 'flex', alignItems: 'center', gap: 4
                                         }}
                                         onClick={() => claimOrder(order.id)}
                                         disabled={claiming}
                                     >
                                         <FaPlay size={10}/> Nhận đơn
+                                    </button>
+                                )}
+
+                                {/* --- NÚT TRẢ MÓN / XONG ĐƠN (MỚI) --- */}
+                                {canFinish && (
+                                    <button 
+                                        className="btn btn-sm" 
+                                        style={{
+                                            padding: '4px 10px', fontSize: '0.75rem', 
+                                            background: '#16a34a', color: 'white', border: 'none', 
+                                            borderRadius: '20px', 
+                                            boxShadow: '0 2px 5px rgba(22, 163, 74, 0.3)',
+                                            whiteSpace: 'nowrap',
+                                            display: 'flex', alignItems: 'center', gap: 4,
+                                            cursor: 'pointer'
+                                        }}
+                                        onClick={() => finishOrder(order.id)}
+                                        disabled={finishing}
+                                    >
+                                        <FaCheckDouble size={10}/> Trả món
                                     </button>
                                 )}
                             </div>
@@ -154,7 +178,6 @@ export default function KitchenDashboard() {
                             </div>
                         </div>
 
-                        {/* Dot trạng thái: CONFIRMED(Xanh), PREPARING(Vàng) */}
                         <div className="status-dot" title={order.status}
                              style={{
                                  background: order.status === 'CONFIRMED' ? '#3b82f6' : '#f59e0b',
@@ -162,12 +185,10 @@ export default function KitchenDashboard() {
                              }}></div>
                     </div>
                     
-                    {/* --- BODY TICKET --- */}
                     <div className="ticket-body">
                         {order.items.map(item => {
                             if (item.status === 'DONE') return null;
                             const isMine = item.chef?.username === username;
-                            // Kiểm tra item pending để hiển thị khác biệt
                             const isPending = item.status === 'PENDING';
                             
                             return (

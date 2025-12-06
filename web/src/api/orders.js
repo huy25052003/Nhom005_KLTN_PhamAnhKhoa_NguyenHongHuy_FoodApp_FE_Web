@@ -80,3 +80,7 @@ export async function getKitchenOrders() {
   const res = await http.get("/kitchen/orders");
   return res.data;
 }
+export async function finishKitchenOrder(id) {
+  const res = await http.post(`/kitchen/orders/${id}/finish`);
+  return res.data;
+}
