@@ -9,7 +9,7 @@ import { useAuth } from "../../stores/auth.js";
 import http from "../../lib/http.js";
 import { FaEye, FaEyeSlash, FaGoogle } from "react-icons/fa";
 
-// ... hàm decodeToken giữ nguyên ...
+
 function decodeToken(token) { /* ... */ return { isAdmin: false, isKitchen: false }; }
 
 export default function LoginPage() {
@@ -17,21 +17,35 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   
-  // State lưu lỗi của từng trường
   const [errors, setErrors] = useState({ username: "", password: "" });
 
   const { setToken } = useAuth();
   const nav = useNavigate();
   const location = useLocation();
 
-  // ... hàm handleSuccess giữ nguyên ...
   const handleSuccess = (accessToken) => {
     setToken(accessToken);
+    
+    const { isAdmin, isKitchen } = useAuth.getState(); 
+    
     http.defaults.headers.common.Authorization = `Bearer ${accessToken}`;
     toast.success("Đăng nhập thành công");
+    
     const params = new URLSearchParams(location.search);
-    const redirect = params.get("redirect") || "/";
-    setTimeout(() => nav(redirect, { replace: true }), 100);
+    const redirect = params.get("redirect"); 
+    let redirectTo = "/"; 
+
+    if (redirect) {
+        redirectTo = redirect;
+    } 
+    else if (isAdmin) {
+        redirectTo = "/admin"; 
+    } 
+    else if (isKitchen) {
+        redirectTo = "/kitchen";
+    }
+    
+    setTimeout(() => nav(redirectTo, { replace: true }), 100);
   };
 
   const { mutate: doLogin, isPending } = useMutation({
@@ -47,9 +61,8 @@ export default function LoginPage() {
     if (!username.trim()) newErrors.username = "Vui lòng nhập tài khoản";
     if (!password) newErrors.password = "Vui lòng nhập mật khẩu";
 
-    setErrors(newErrors); // Cập nhật lỗi
+    setErrors(newErrors); 
 
-    // Nếu không có lỗi thì mới login
     if (Object.keys(newErrors).length === 0) {
         doLogin();
     }
@@ -116,7 +129,7 @@ export default function LoginPage() {
             {isPending ? "Đang xử lý..." : "Đăng nhập"}
           </button>
           
-          {/* ... Links & Google Button (Giữ nguyên) ... */}
+          {/* ... Links & Google Button ... */}
           <div className="flex-row space-between mt-3">
              <Link to="/forgot-password">Quên mật khẩu?</Link>
              <Link to="/login-phone">Đăng nhập SMS</Link>
