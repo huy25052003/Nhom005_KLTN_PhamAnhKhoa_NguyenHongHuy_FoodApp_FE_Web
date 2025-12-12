@@ -49,7 +49,7 @@ export default function LoginPage() {
   };
 
   const { mutate: doLogin, isPending } = useMutation({
-    mutationFn: () => login(username, password),
+    mutationFn: () => login(username.trim(), password),
     onSuccess: ({ accessToken }) => handleSuccess(accessToken),
     onError: (err) => toast.error(err?.response?.data?.message || "Sai thông tin đăng nhập"),
   });

@@ -45,6 +45,17 @@ export default function ForgotPasswordPage() {
         return;
     }
 
+    // NEW: Password length and space validation (START)
+    if (newPass.length < 6) {
+        toast.error("Mật khẩu phải có ít nhất 6 ký tự.");
+        return;
+    }
+    if (newPass.includes(' ') || newPass.trim() !== newPass) {
+        toast.error("Mật khẩu không được chứa khoảng trắng.");
+        return;
+    }
+    // NEW: Password length and space validation (END)
+
     setLoading(true);
     try {
       await resetPasswordEmail(email, otp, newPass);
@@ -69,6 +80,17 @@ export default function ForgotPasswordPage() {
         toast.error("Mật khẩu nhập lại không khớp!");
         return;
     }
+
+    // NEW: Password length and space validation (START)
+    if (newPass.length < 6) {
+        toast.error("Mật khẩu phải có ít nhất 6 ký tự.");
+        return;
+    }
+    if (newPass.includes(' ') || newPass.trim() !== newPass) {
+        toast.error("Mật khẩu không được chứa khoảng trắng.");
+        return;
+    }
+    // NEW: Password length and space validation (END)
 
     setLoading(true);
     try {

@@ -4,12 +4,21 @@ import {
 } from "../../api/products.js";
 import { getCategories } from "../../api/categories.js";
 import { uploadImage } from "../../api/uploads.js"; 
-import http from "../../lib/http"; // Import http để gọi API AI
-import { FaEye, FaEyeSlash, FaTrash, FaEdit, FaMagic } from "react-icons/fa"; // Thêm icon Magic
+import http from "../../lib/http";
+import { FaEye, FaEyeSlash, FaTrash, FaEdit, FaMagic } from "react-icons/fa";
 import toast from "react-hot-toast";
 
 const PAGE_SIZE = 12;
 const formatVND = (n) => (Number(n || 0)).toLocaleString("vi-VN") + " đ";
+
+const parseNumber = (value) => {
+    const num = Number(value) || 0;
+    return Math.max(0, num);
+};
+const parseInteger = (value) => {
+    const num = parseInt(value, 10) || 0;
+    return Math.max(0, num);
+};
 
 export default function ProductPage() {
   const [q, setQ] = useState("");
@@ -23,7 +32,6 @@ export default function ProductPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // --- HÀM TẢI DỮ LIỆU ---
   async function load() {
     setLoading(true);
     try {
@@ -40,13 +48,11 @@ export default function ProductPage() {
 
   useEffect(() => { load(); }, []);
 
-  // Reset ảnh khi mở modal sửa
   useEffect(() => {
     if (editing) setImgUrl(editing.imageUrl || "");
     else setImgUrl("");
   }, [editing]);
 
-  // --- LOGIC LỌC & PHÂN TRANG ---
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();
     let data = items;
@@ -61,7 +67,6 @@ export default function ProductPage() {
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageData = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  // --- CÁC HÀM TƯƠNG TÁC (ẨN/HIỆN, XÓA, LƯU) ---
   async function onToggle(p) {
     try {
       await toggleProductStatus(p.id);
@@ -87,25 +92,35 @@ export default function ProductPage() {
     setSaving(true);
     try {
       const fd = new FormData(form);
+      
+      const name = String(fd.get("name") || "").trim();
+      const price = parseNumber(fd.get("price"));
+      const stock = parseInteger(fd.get("stock"));
+      const calories = parseInteger(fd.get("calories"));
+      const protein = parseNumber(fd.get("protein"));
+      const carbs = parseNumber(fd.get("carbs"));
+      const fat = parseNumber(fd.get("fat"));
+
+      if (!name) throw new Error("Tên sản phẩm bắt buộc");
+      if (price <= 0) throw new Error("Giá bán phải lớn hơn 0");
+
       const base = {
-        name: String(fd.get("name") || "").trim(),
-        price: Number(fd.get("price") || 0),
-        stock: Math.max(0, Number(fd.get("stock") || 0)),
+        name,
+        price,
+        stock,
         imageUrl: String(imgUrl || ""),
         description: String(fd.get("description") || ""),
         
-        // --- THÔNG TIN DINH DƯỠNG ---
-        calories: Number(fd.get("calories") || 0),
-        protein: Number(fd.get("protein") || 0),
-        carbs: Number(fd.get("carbs") || 0),
-        fat: Number(fd.get("fat") || 0),
+        calories,
+        protein,
+        carbs,
+        fat,
         
         active: true 
       };
       const categoryId = Number(fd.get("categoryId") || 0);
       const payload = { ...base, ...(categoryId ? { category: { id: categoryId } } : {}) };
 
-      if (!base.name) throw new Error("Tên sản phẩm bắt buộc");
       
       if (editing?.id) {
           payload.active = editing.active; 
@@ -126,9 +141,7 @@ export default function ProductPage() {
     }
   }
 
-  // --- HÀM GỌI AI PHÂN TÍCH ---
   async function handleAIAnalysis() {
-      // Lấy dữ liệu từ DOM (vì đang dùng Uncontrolled Component)
       const nameInput = document.querySelector('input[name="name"]');
       const descInput = document.querySelector('textarea[name="description"]');
       
@@ -143,18 +156,17 @@ export default function ProductPage() {
       
       try {
           const res = await http.post("/admin/nutrition/analyze", { text: textToAnalyze });
-          const data = res.data; // { calories, protein, carbs, fat }
+          const data = res.data;
 
-          // Điền ngược dữ liệu vào các ô input
           const setVal = (name, val) => {
               const el = document.querySelector(`input[name="${name}"]`);
               if (el) el.value = val;
           };
 
-          setVal("calories", data.calories || 0);
-          setVal("protein", data.protein || 0);
-          setVal("carbs", data.carbs || 0);
-          setVal("fat", data.fat || 0);
+          setVal("calories", parseInteger(data.calories));
+          setVal("protein", parseNumber(data.protein));
+          setVal("carbs", parseNumber(data.carbs));
+          setVal("fat", parseNumber(data.fat));
 
           toast.success("Đã phân tích xong!", { id: toastId });
       } catch (e) {
@@ -163,7 +175,6 @@ export default function ProductPage() {
       }
   }
 
-  // --- UPLOAD ẢNH ---
   async function onPickFile(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -258,7 +269,6 @@ export default function ProductPage() {
         <button className="btn" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>→</button>
       </div>
 
-      {/* --- MODAL FORM --- */}
       {editing && (
         <div className="modal-backdrop" onClick={(e)=>{if(e.target===e.currentTarget) setEditing(null)}}>
           <div className="modal" style={{maxWidth: '800px'}}>
@@ -267,7 +277,6 @@ export default function ProductPage() {
             <form onSubmit={(e) => { e.preventDefault(); if (!saving) save(e.currentTarget); }}>
                <div className="form-grid">
                     
-                    {/* Tên & Mô tả (Đầu vào cho AI) */}
                     <div className="full">
                         <label className="label">Tên sản phẩm</label>
                         <input name="name" defaultValue={editing.name} required className="input" placeholder="VD: Cơm gạo lứt ức gà" />
@@ -277,7 +286,6 @@ export default function ProductPage() {
                         <textarea name="description" defaultValue={editing.description || ""} rows={3} className="input" placeholder="VD: 150g ức gà, 100g cơm gạo lứt, súp lơ xanh..." />
                     </div>
 
-                    {/* --- KHU VỰC AI --- */}
                     <div className="full" style={{background: '#f0f9ff', padding: 16, borderRadius: 12, border: '1px dashed #3b82f6', marginTop: 8}}>
                         <div className="flex-row space-between align-center mb-3">
                             <div style={{fontWeight: 700, color:'#1e40af', display:'flex', alignItems:'center', gap: 8}}>
@@ -312,7 +320,6 @@ export default function ProductPage() {
                             </div>
                         </div>
                     </div>
-                    {/* ----------------- */}
 
                     <div className="grid2 full mt-3">
                         <div>

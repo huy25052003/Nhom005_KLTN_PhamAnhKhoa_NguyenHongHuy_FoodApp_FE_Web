@@ -7,6 +7,7 @@ import { useAuth } from "../../stores/auth.js";
 import PhoneVerifyModal from "../../component/PhoneVerifyModal.jsx";
 
 const API_HOST = "https://esgoo.net/api-tinhthanh-new";
+const PHONE_REGEX = /^(03|05|07|08|09)\d{8}$/;
 
 export default function ShippingInfoPage() {
   const { token } = useAuth();
@@ -22,7 +23,6 @@ export default function ShippingInfoPage() {
   const [provinces, setProvinces] = useState([]);
   const [wards, setWards] = useState([]);
 
-  // Form này là thông tin GIAO HÀNG (có thể khác thông tin tài khoản)
   const [form, setForm] = useState({
     phone: "",
     houseNumber: "",
@@ -37,11 +37,9 @@ export default function ShippingInfoPage() {
 
   const validateField = (name, value) => {
     let error = "";
-    // Validate SĐT giao hàng (chỉ cần đúng định dạng, không cần verify OTP số này)
     if (name === "phone") {
-      const phoneRegex = /^(03|05|07|08|09)\d{8}$/;
       if (!value.trim()) error = "Vui lòng nhập số điện thoại người nhận";
-      else if (!phoneRegex.test(value)) error = "SĐT không hợp lệ (10 số)";
+      else if (!PHONE_REGEX.test(value.trim())) error = "SĐT không hợp lệ (10 số, bắt đầu bằng 0)";
     }
     if (name === "houseNumber" && !value.trim()) error = "Vui lòng nhập số nhà/tên đường";
     if (name === "selectedProv" && !value) error = "Vui lòng chọn Tỉnh/Thành phố";
@@ -69,20 +67,18 @@ export default function ShippingInfoPage() {
         if (resProv.error === 0) setProvinces(resProv.data);
         if (userInfo) setUser(userInfo);
 
-        // Logic điền SĐT: Ưu tiên lấy từ Shipping cũ, nếu chưa có thì gợi ý SĐT tài khoản
         let initialPhone = shipInfo?.phone || userInfo?.phone || "";
 
-        // Tách địa chỉ cũ
         let house = "";
         if (shipInfo?.addressLine) {
-             const parts = shipInfo.addressLine.split(",");
+             const parts = shipInfo.addressLine.split(",").map(p => p.trim());
              house = parts[0] || "";
         }
-
+        
         setForm({
           phone: initialPhone,
           houseNumber: house,
-          selectedProv: "", 
+          selectedProv: "",
           selectedWard: "",
           note: shipInfo?.note || ""
         });
@@ -127,14 +123,12 @@ export default function ShippingInfoPage() {
   async function onSave(e) {
     e.preventDefault();
 
-    // 1. Kiểm tra User Account đã xác thực chưa (Chống spam)
     if (!user?.isPhoneVerified) {
         toast.error("Bạn cần xác thực tài khoản trước khi đặt hàng!", { icon: '🔒' });
-        setModalOpen(true); // Tự động mở modal xác thực SĐT chính chủ
+        setModalOpen(true);
         return;
     }
 
-    // 2. Validate form giao hàng
     const errPhone = validateField("phone", form.phone);
     const errProv = validateField("selectedProv", form.selectedProv);
     const errWard = validateField("selectedWard", form.selectedWard);
@@ -149,10 +143,10 @@ export default function ShippingInfoPage() {
     try {
       const pName = getName(provinces, form.selectedProv);
       const wName = getName(wards, form.selectedWard);
-      const fullAddress = `${form.houseNumber}, ${wName}, ${pName}`;
+      const fullAddress = `${form.houseNumber.trim()}, ${wName}, ${pName}`;
       
       await upsertMyShipping({
-        phone: form.phone.trim(), // Lưu số người nhận (có thể khác số tài khoản)
+        phone: form.phone.trim(),
         city: pName, 
         addressLine: fullAddress, 
         note: form.note.trim()
@@ -175,7 +169,6 @@ export default function ShippingInfoPage() {
     <div className="container section fade-in">
       <h1 className="h1">Thông tin giao hàng</h1>
 
-      {/* Cảnh báo nếu tài khoản chưa verify */}
       {!user?.isPhoneVerified && (
         <div className="card mb-4" style={{background: '#fff7ed', borderColor: '#fdba74'}}>
             <div className="flex-row gap-2 text-orange-700">
@@ -204,7 +197,6 @@ export default function ShippingInfoPage() {
             {errors.phone && <span className="error-text">{errors.phone}</span>}
           </div>
 
-          {/* Các trường địa chỉ giữ nguyên */}
           <div className="grid2">
             <div>
               <label className="label">Tỉnh / Thành phố <span className="text-red-500">*</span></label>
@@ -276,11 +268,10 @@ export default function ShippingInfoPage() {
         </form>
       </div>
 
-      {/* MODAL XÁC THỰC SĐT TÀI KHOẢN (KHÔNG PHẢI SĐT GIAO HÀNG) */}
       <PhoneVerifyModal 
          isOpen={modalOpen} 
          onClose={() => setModalOpen(false)} 
-         phoneNumber={user?.phone || ""} // Gợi ý SĐT hiện tại của user
+         phoneNumber={user?.phone || ""}
          onSuccess={onVerifySuccess}
       />
     </div>

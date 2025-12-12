@@ -4,13 +4,14 @@ import { getProfile, updateProfile, getMe } from "../../api/users";
 import { getMyShipping, upsertMyShipping } from "../../api/shipping";
 import PhoneVerifyModal from "../../component/PhoneVerifyModal";
 import EmailVerifyModal from "../../component/EmailVerifyModal";
+import dayjs from "dayjs";
 import { 
   FaUser, FaHeartbeat, FaMapMarkedAlt, FaSave, 
-  FaMars, FaVenus, FaCalculator, FaBullseye,
-  FaCrown, FaGift 
+  FaCalculator, FaCrown
 } from "react-icons/fa";
 
 const API_HOST = "https://esgoo.net/api-tinhthanh-new";
+const PHONE_REGEX = /^(03|05|07|08|09)\d{8}$/;
 
 export default function AccountProfilePage() {
   const [user, setUser] = useState(null);
@@ -29,7 +30,6 @@ export default function AccountProfilePage() {
     shippingPhone: "", pId: "", wId: "", houseNumber: "", note: ""
   });
 
-  // --- LOGIC HẠNG THÀNH VIÊN ---
   const points = user?.points || 0;
   let rank = "Thành viên Mới";
   let nextRank = "Bạc";
@@ -55,7 +55,6 @@ export default function AccountProfilePage() {
       benefit = "Giảm 3% đơn hàng";
   }
 
-  // --- TÍNH TDEE ---
   const estimatedTDEE = useMemo(() => {
     const { heightCm, weightKg, birthDate, gender, activityLevel, goal } = form;
     if (!heightCm || !weightKg || !birthDate) return 0;
@@ -75,7 +74,6 @@ export default function AccountProfilePage() {
     return maintenance;
   }, [form.heightCm, form.weightKg, form.birthDate, form.gender, form.activityLevel, form.goal]);
 
-  // Load Data
   useEffect(() => {
     (async () => {
       try {
@@ -96,6 +94,14 @@ export default function AccountProfilePage() {
             }));
         }
 
+        let initialPId = "";
+        let initialWId = "";
+        
+        if (shipping?.city) {
+            const province = provRes.data?.find(p => p.full_name === shipping.city);
+            if(province) initialPId = province.id;
+        }
+
         setForm(prev => ({
             ...prev,
             fullName: profile?.fullName || "",
@@ -108,9 +114,23 @@ export default function AccountProfilePage() {
             targetCalories: profile?.targetCalories || "",
             
             shippingPhone: shipping?.phone || userData?.phone || "",
-            houseNumber: shipping?.addressLine || "", 
+            houseNumber: shipping?.addressLine?.split(',')[0]?.trim() || "", 
+            pId: initialPId,
+            wId: initialWId,
             note: shipping?.note || ""
         }));
+
+        if(initialPId && shipping?.addressLine) {
+            fetch(`${API_HOST}/2/${initialPId}.htm`).then(r => r.json()).then(res => {
+                const parts = shipping.addressLine.split(',').map(p => p.trim());
+                if(parts.length >= 2) {
+                    const wardName = parts[parts.length - 2];
+                    const ward = res.data?.find(w => w.full_name === wardName);
+                    if(ward) setForm(prev => ({...prev, wId: ward.id}));
+                }
+            });
+        }
+
       } catch (e) { toast.error("Lỗi tải dữ liệu"); } 
       finally { setLoading(false); }
     })();
@@ -126,32 +146,58 @@ export default function AccountProfilePage() {
   const onChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
   const onSubmit = async () => {
+    if (form.birthDate) {
+        const today = dayjs().format('YYYY-MM-DD');
+        if (form.birthDate > today) {
+            toast.error("Ngày sinh không thể là ngày trong tương lai.");
+            const bdInput = document.querySelector('input[name="birthDate"]');
+            if(bdInput) bdInput.focus();
+            return; 
+        }
+    }
+    
     const loadId = toast.loading("Đang lưu...");
     try {
-      await updateProfile({
-        fullName: form.fullName, birthDate: form.birthDate, gender: form.gender,
-        heightCm: Number(form.heightCm)||null, weightKg: Number(form.weightKg)||null,
-        activityLevel: form.activityLevel, goal: form.goal,
+      const profilePayload = {
+        fullName: form.fullName.trim() || null,
+        birthDate: form.birthDate || null,
+        gender: form.gender || null,
+        heightCm: Number(form.heightCm)||null,
+        weightKg: Number(form.weightKg)||null,
+        activityLevel: form.activityLevel || null,
+        goal: form.goal || null,
         targetCalories: Number(form.targetCalories)||null,
-      });
+      };
 
-      let addressToSave = form.houseNumber;
-      if (form.pId && form.wId) {
+      await updateProfile(profilePayload);
+      
+      const isShippingFormComplete = form.shippingPhone && form.houseNumber && form.pId && form.wId;
+      
+      if (isShippingFormComplete) {
           const pName = provinces.find(p => p.id === form.pId)?.full_name;
           const wName = wards.find(w => w.id === form.wId)?.full_name;
-          addressToSave = `${form.houseNumber}, ${wName}, ${pName}`;
-      }
+
+          if (!pName || !wName || !form.houseNumber.trim() || !PHONE_REGEX.test(form.shippingPhone.trim())) {
+              toast.error("Lưu ý: Địa chỉ giao hàng chưa đủ thông tin hoặc SĐT sai định dạng.");
+          } else {
+              const fullAddress = `${form.houseNumber.trim()}, ${wName}, ${pName}`;
+              
+              await upsertMyShipping({
+                phone: form.shippingPhone.trim(),
+                addressLine: fullAddress,
+                city: pName,
+                note: form.note.trim()
+              });
+          }
+      } else if (form.shippingPhone || form.houseNumber || form.pId || form.wId) {
+           toast.error("Lưu ý: Địa chỉ giao hàng chưa đủ 4 trường bắt buộc (SĐT, Số nhà, Tỉnh, Phường) nên chưa được lưu.");
+      } 
       
-      if (addressToSave) {
-          await upsertMyShipping({
-            phone: form.shippingPhone || form.phone,
-            addressLine: addressToSave,
-            city: provinces.find(p => p.id === form.pId)?.full_name || "Vietnam",
-            note: form.note
-          });
-      }
-      toast.success("Cập nhật thành công!", { id: loadId });
-    } catch (e) { toast.error("Lỗi lưu dữ liệu", { id: loadId }); }
+      toast.success("Cập nhật thông tin cá nhân thành công!", { id: loadId });
+
+    } catch (e) { 
+        toast.error(e?.response?.data?.message || "Lỗi lưu dữ liệu", { id: loadId }); 
+    }
   };
 
   if (loading) return <div className="container section text-center"><div className="loading"></div></div>;
@@ -159,7 +205,6 @@ export default function AccountProfilePage() {
   return (
     <div className="profile-container fade-in">
       
-      {/* Header */}
       <div className="flex-row space-between align-center mb-4">
          <div>
             <h1 className="h2" style={{margin:0, color: 'var(--text)'}}>Hồ sơ cá nhân</h1>
@@ -170,7 +215,6 @@ export default function AccountProfilePage() {
          </button>
       </div>
 
-      {/* --- THẺ THÀNH VIÊN --- */}
       <div className={`membership-card ${rankClass}`}>
           <div className="card-bg-icon"><FaCrown /></div>
           <div className="card-content">
@@ -191,12 +235,10 @@ export default function AccountProfilePage() {
 
       <div className="grid-2x2-balanced" style={{alignItems: 'start', gap: '24px'}}>
         
-        {/* CỘT TRÁI: TÀI KHOẢN & GIAO HÀNG */}
         <div className="vstack gap-3">
             <div className="profile-card">
                 <h3 className="flex-row gap-2 mb-3"><FaUser className="text-blue-600"/> Thông tin tài khoản</h3>
                 
-                {/* Gom nhóm Email & SĐT thành 2 cột */}
                 <div className="grid2 mb-2">
                     <div className="field">
                         <label className="label">Email</label>
@@ -223,7 +265,6 @@ export default function AccountProfilePage() {
             <div className="profile-card">
                 <h3 className="flex-row gap-2 mb-3"><FaMapMarkedAlt className="text-orange-600"/> Địa chỉ mặc định</h3>
                 
-                {/* Gom SĐT nhận hàng & Tỉnh thành 2 cột */}
                 <div className="grid2 mb-2">
                     <div className="field">
                         <label className="label">SĐT Nhận hàng</label>
@@ -238,7 +279,6 @@ export default function AccountProfilePage() {
                     </div>
                 </div>
 
-                {/* Gom Phường & Số nhà thành 2 cột */}
                 <div className="grid2">
                     <div className="field">
                         <label className="label">Phường / Xã</label>
@@ -255,7 +295,6 @@ export default function AccountProfilePage() {
             </div>
         </div>
 
-        {/* CỘT PHẢI: HỒ SƠ SỨC KHỎE */}
         <div className="profile-card" style={{borderTop: '4px solid #10b981'}}>
             <h3 className="flex-row gap-2 mb-4"><FaHeartbeat className="text-red-500"/> Chỉ số Sức khỏe</h3>
             
@@ -309,7 +348,6 @@ export default function AccountProfilePage() {
                 </div>
             </div>
 
-            {/* Box TDEE Calculator */}
             <div className="bg-green-50 p-3 rounded-lg border border-green-200 mb-4 text-center">
                 <div className="text-sm text-green-800 font-bold flex-row justify-center gap-2">
                     <FaCalculator /> Nhu cầu Calo/ngày

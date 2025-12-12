@@ -14,15 +14,24 @@ export default function RegisterPage() {
 
   const { mutate, isPending } = useMutation({
     mutationFn: async () => {
-      if (!username.trim() || !password.trim()) throw new Error("Vui lòng nhập đủ thông tin.");
-      if (password !== confirm) throw new Error("Mật khẩu nhập lại không khớp.");
+      // START MODIFIED VALIDATION
+      const trimmedUsername = username.trim();
+      const trimmedPassword = password;
+      const trimmedConfirm = confirm;
+
+      if (!trimmedUsername || !trimmedPassword) throw new Error("Vui lòng nhập đủ thông tin.");
+      if (trimmedPassword !== trimmedConfirm) throw new Error("Mật khẩu nhập lại không khớp.");
+
+      if (trimmedPassword.length < 6) throw new Error("Mật khẩu phải có ít nhất 6 ký tự.");
+      if (trimmedPassword.includes(' ')) throw new Error("Mật khẩu không được chứa khoảng trắng.");
+      // END MODIFIED VALIDATION
       
-      const rs = await register(username.trim(), password);
+      const rs = await register(trimmedUsername, trimmedPassword);
       // Tự động login sau khi đăng ký
       if (rs?.accessToken) {
         return { accessToken: rs.accessToken };
       } else {
-        return await login(username.trim(), password);
+        return await login(trimmedUsername, trimmedPassword);
       }
     },
     onSuccess: ({ accessToken }) => {
