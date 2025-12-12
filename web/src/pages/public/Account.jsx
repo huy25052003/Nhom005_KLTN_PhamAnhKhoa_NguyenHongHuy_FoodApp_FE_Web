@@ -13,6 +13,15 @@ import {
 const API_HOST = "https://esgoo.net/api-tinhthanh-new";
 const PHONE_REGEX = /^(03|05|07|08|09)\d{8}$/;
 
+const numOrNull = (v) => {
+    const s = String(v).trim();
+    if (s === "") return null;
+    const num = Number(s);
+    return isNaN(num) ? null : num;
+};
+
+const strOrNull = (s) => (s && s.trim() ? s.trim() : null);
+
 export default function AccountProfilePage() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -145,7 +154,22 @@ export default function AccountProfilePage() {
 
   const onChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
-  const onSubmit = async () => {
+  const onSaveAccountInfo = async () => {
+    const loadId = toast.loading("Đang lưu Thông tin Tài khoản...");
+    try {
+      const profilePayload = {
+        fullName: strOrNull(form.fullName),
+      };
+
+      await updateProfile(profilePayload);
+      toast.success("Cập nhật Thông tin Tài khoản thành công!", { id: loadId });
+
+    } catch (e) { 
+        toast.error(e?.response?.data?.message || "Lỗi lưu Thông tin Tài khoản", { id: loadId }); 
+    }
+  };
+
+  const onSaveHealth = async () => {
     if (form.birthDate) {
         const today = dayjs().format('YYYY-MM-DD');
         if (form.birthDate > today) {
@@ -156,47 +180,56 @@ export default function AccountProfilePage() {
         }
     }
     
-    const loadId = toast.loading("Đang lưu...");
+    const loadId = toast.loading("Đang lưu Hồ sơ & Sức khỏe...");
     try {
       const profilePayload = {
-        fullName: form.fullName.trim() || null,
-        birthDate: form.birthDate || null,
-        gender: form.gender || null,
-        heightCm: Number(form.heightCm)||null,
-        weightKg: Number(form.weightKg)||null,
-        activityLevel: form.activityLevel || null,
-        goal: form.goal || null,
-        targetCalories: Number(form.targetCalories)||null,
+        birthDate: strOrNull(form.birthDate),
+        gender: strOrNull(form.gender),
+        activityLevel: strOrNull(form.activityLevel),
+        goal: strOrNull(form.goal),
+        
+        heightCm: numOrNull(form.heightCm),
+        weightKg: numOrNull(form.weightKg),
+        targetCalories: numOrNull(form.targetCalories),
       };
 
       await updateProfile(profilePayload);
-      
-      const isShippingFormComplete = form.shippingPhone && form.houseNumber && form.pId && form.wId;
-      
-      if (isShippingFormComplete) {
-          const pName = provinces.find(p => p.id === form.pId)?.full_name;
-          const wName = wards.find(w => w.id === form.wId)?.full_name;
-
-          if (!pName || !wName || !form.houseNumber.trim() || !PHONE_REGEX.test(form.shippingPhone.trim())) {
-              toast.error("Lưu ý: Địa chỉ giao hàng chưa đủ thông tin hoặc SĐT sai định dạng.");
-          } else {
-              const fullAddress = `${form.houseNumber.trim()}, ${wName}, ${pName}`;
-              
-              await upsertMyShipping({
-                phone: form.shippingPhone.trim(),
-                addressLine: fullAddress,
-                city: pName,
-                note: form.note.trim()
-              });
-          }
-      } else if (form.shippingPhone || form.houseNumber || form.pId || form.wId) {
-           toast.error("Lưu ý: Địa chỉ giao hàng chưa đủ 4 trường bắt buộc (SĐT, Số nhà, Tỉnh, Phường) nên chưa được lưu.");
-      } 
-      
-      toast.success("Cập nhật thông tin cá nhân thành công!", { id: loadId });
+      toast.success("Cập nhật Hồ sơ & Sức khỏe thành công!", { id: loadId });
 
     } catch (e) { 
-        toast.error(e?.response?.data?.message || "Lỗi lưu dữ liệu", { id: loadId }); 
+        toast.error(e?.response?.data?.message || "Lỗi lưu Hồ sơ & Sức khỏe", { id: loadId }); 
+    }
+  };
+
+  const onSaveShipping = async () => {
+    const pName = provinces.find(p => p.id === form.pId)?.full_name;
+    const wName = wards.find(w => w.id === form.wId)?.full_name;
+    const shippingPhone = strOrNull(form.shippingPhone);
+    const houseNumber = strOrNull(form.houseNumber);
+
+    if (!shippingPhone || !houseNumber || !form.pId || !form.wId || !pName || !wName) {
+        toast.error("Vui lòng điền đủ SĐT nhận hàng, Số nhà, Tỉnh/Thành phố và Phường/Xã.");
+        return;
+    }
+    if (!PHONE_REGEX.test(shippingPhone)) {
+        toast.error("Số điện thoại nhận hàng không hợp lệ (10 số, bắt đầu bằng 0).");
+        return;
+    }
+
+    const loadId = toast.loading("Đang lưu Địa chỉ giao hàng...");
+    try {
+        const fullAddress = `${houseNumber}, ${wName}, ${pName}`;
+        
+        await upsertMyShipping({
+            phone: shippingPhone,
+            addressLine: fullAddress,
+            city: pName,
+            note: strOrNull(form.note)
+        });
+        
+        toast.success("Cập nhật Địa chỉ giao hàng thành công!", { id: loadId });
+    } catch (e) {
+        toast.error(e?.response?.data?.message || "Lỗi lưu Địa chỉ giao hàng", { id: loadId });
     }
   };
 
@@ -210,9 +243,6 @@ export default function AccountProfilePage() {
             <h1 className="h2" style={{margin:0, color: 'var(--text)'}}>Hồ sơ cá nhân</h1>
             <p className="muted" style={{margin:0}}>Cập nhật thông tin để nhận gợi ý thực đơn chuẩn xác.</p>
          </div>
-         <button onClick={onSubmit} className="btn btn-primary shadow-md">
-            <FaSave /> Lưu thay đổi
-         </button>
       </div>
 
       <div className={`membership-card ${rankClass}`}>
@@ -260,6 +290,10 @@ export default function AccountProfilePage() {
                     <label className="label">Họ tên hiển thị</label>
                     <input className="input" name="fullName" value={form.fullName} onChange={onChange} placeholder="Tên hiển thị..." />
                 </div>
+                
+                <button onClick={onSaveAccountInfo} className="btn btn-primary w-full" style={{marginTop: 16, gridColumn: '1 / -1'}}>
+                    <FaSave /> Lưu Thông tin Tài khoản
+                </button>
             </div>
 
             <div className="profile-card">
@@ -292,6 +326,15 @@ export default function AccountProfilePage() {
                         <input className="input" name="houseNumber" value={form.houseNumber} onChange={onChange} placeholder="Số nhà, đường..." />
                     </div>
                 </div>
+                
+                <div className="field full" style={{marginTop: 16}}>
+                    <label className="label">Ghi chú</label>
+                    <textarea className="input" name="note" value={form.note} onChange={onChange} rows={2} placeholder="Ví dụ: Giao giờ hành chính, không gọi điện..." />
+                </div>
+
+                <button onClick={onSaveShipping} className="btn btn-primary w-full" style={{marginTop: 16, gridColumn: '1 / -1'}}>
+                    <FaSave /> Lưu Địa chỉ Giao hàng
+                </button>
             </div>
         </div>
 
@@ -361,6 +404,10 @@ export default function AccountProfilePage() {
                 <label className="label">Target Calories (Tùy chỉnh)</label>
                 <input type="number" className="input" name="targetCalories" value={form.targetCalories} onChange={onChange} placeholder={`Mặc định: ${estimatedTDEE || 2000}`} />
             </div>
+
+            <button onClick={onSaveHealth} className="btn btn-primary w-full" style={{marginTop: 16}}>
+                <FaSave /> Lưu Hồ sơ & Sức khỏe
+            </button>
         </div>
       </div>
 
