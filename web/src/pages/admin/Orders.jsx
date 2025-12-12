@@ -1,9 +1,14 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { getOrders, getOrder, updateOrderStatus } from "../../api/orders.js";
 import { Link } from 'react-router-dom';
 import toast from "react-hot-toast";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import SockJS from "sockjs-client";
+import { Client } from "@stomp/stompjs";
+import { useAuth } from "../../stores/auth.js";
 
-// SỬA: Đồng bộ chuẩn với Backend (DELIVERING, DONE, CANCELLED)
+const WS_URL = import.meta.env.VITE_WS_URL;
+
 const STATUS_LIST = ["PENDING","CONFIRMED","PREPARING","DELIVERING","DONE","CANCELLED"];
 const PAGE_SIZES = [10, 20, 50];
 
@@ -24,43 +29,66 @@ const calcTotal = (o) => {
   }, 0);
 };
 
-// SỬA: Logic chuyển trạng thái tiếp theo
 function nextStatuses(current) {
   switch ((current || "").toUpperCase()) {
     case "PENDING":    return ["CONFIRMED", "CANCELLED"];
     case "CONFIRMED":  return ["PREPARING", "CANCELLED"];
-    case "PREPARING":  return ["DELIVERING"]; // Sửa SHIPPING -> DELIVERING
-    case "DELIVERING": return ["DONE"];       // Sửa COMPLETED -> DONE
+    case "PREPARING":  return ["DELIVERING"];
+    case "DELIVERING": return ["DONE"];
     default:           return [];
   }
 }
 
 export default function OrdersPage() {
+  const qc = useQueryClient();
+  const { token } = useAuth();
+  
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(10);
   const [statusFilter, setStatusFilter] = useState("");
   const [q, setQ] = useState(""); 
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState({ content: [], number: 0, size: 10, totalPages: 1, totalElements: 0 });
-
   const [viewing, setViewing] = useState(null); 
   const [updating, setUpdating] = useState(false);
+  
+  const stompRef = useRef(null);
 
-  async function load() {
-    setLoading(true);
-    try {
-      const res = await getOrders(page, size);
-      setData(res);
-    } catch (e) {
-      toast.error(e?.response?.data?.message || e?.message || "Tải danh sách đơn thất bại");
-    } finally {
-      setLoading(false);
-    }
-  }
-  useEffect(() => { load(); }, [page, size]);
+  const { data: data, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ["orders", page, size],
+    queryFn: () => getOrders(page, size),
+  });
+
+  useEffect(() => {
+    if (!token || !WS_URL) return;
+
+    if (stompRef.current) stompRef.current.deactivate();
+
+    const client = new Client({
+        webSocketFactory: () => new SockJS(WS_URL),
+        connectHeaders: { Authorization: `Bearer ${token}` },
+        reconnectDelay: 5000,
+        debug: () => { },
+    });
+
+    client.onConnect = () => {
+        client.subscribe("/topic/admin/orders", (frame) => {
+            toast.success("🔔 Có đơn hàng mới/cập nhật!");
+            qc.invalidateQueries({ queryKey: ["orders"] }); 
+        });
+    };
+
+    client.activate();
+    stompRef.current = client;
+
+    return () => {
+        if (client) client.deactivate();
+    };
+  }, [token, qc]);
+
+
+  const ordersPage = data || { content: [], number: 0, size: 10, totalPages: 1, totalElements: 0 };
 
   const filtered = useMemo(() => {
-    let list = data.content || [];
+    let list = ordersPage.content || [];
     if (statusFilter) {
       list = list.filter(o => (o.status || "").toUpperCase() === statusFilter);
     }
@@ -74,7 +102,7 @@ export default function OrdersPage() {
       });
     }
     return list;
-  }, [data.content, statusFilter, q]);
+  }, [ordersPage.content, statusFilter, q]);
 
   async function openDetail(order) {
     try {
@@ -90,7 +118,7 @@ export default function OrdersPage() {
     const tId = toast.loading("Đang cập nhật...");
     try {
       await updateOrderStatus(orderId, status);
-      await load();
+      await refetch();
       if (viewing?.id === orderId) {
         const full = await getOrder(orderId);
         setViewing(full);
@@ -117,11 +145,12 @@ export default function OrdersPage() {
             <option value="">Tất cả trạng thái</option>
             {STATUS_LIST.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
-          <button className="btn btn-ghost" onClick={load}>↻</button>
+          <button className="btn btn-ghost" onClick={refetch} disabled={isLoading}>
+            {isLoading ? 'Đang tải...' : '↻'}
+          </button>
         </div>
       </div>
 
-      {/* --- DESKTOP TABLE VIEW --- */}
       <div className="card desktop-only" style={{ overflow:"hidden", padding: 0 }}>
         <table className="table">
           <thead>
@@ -136,7 +165,7 @@ export default function OrdersPage() {
             </tr>
           </thead>
           <tbody>
-            {loading ? (
+            {isLoading ? (
               <tr><td colSpan={7}><div style={{ padding:16 }}>Đang tải…</div></td></tr>
             ) : filtered.length ? filtered.map(o => (
               <tr key={o.id}>
@@ -152,8 +181,9 @@ export default function OrdersPage() {
                     <button key={ns} className="btn btn-sm btn-primary" style={{marginLeft: 4}}
                             disabled={updating} onClick={()=> doUpdateStatus(o.id, ns)}>
                       {ns === 'CONFIRMED' ? 'Duyệt' : 
-                       ns === 'DELIVERING' ? 'Giao hàng' : // Sửa Label
-                       ns === 'DONE' ? 'Hoàn tất' : ns}    {/* Sửa Label */}
+                       ns === 'DELIVERING' ? 'Giao hàng' :
+                       ns === 'DONE' ? 'Hoàn tất' : 
+                       ns === 'CANCELLED' ? 'Hủy' : ns}
                     </button>
                   ))}
                 </td>
@@ -165,9 +195,8 @@ export default function OrdersPage() {
         </table>
       </div>
 
-      {/* --- MOBILE CARD VIEW --- */}
       <div className="mobile-only vstack gap-3">
-        {loading ? <div className="muted text-center">Đang tải...</div> : 
+        {isLoading ? <div className="muted text-center">Đang tải...</div> : 
          filtered.length === 0 ? <div className="muted text-center">Không có đơn hàng nào</div> :
          filtered.map(o => (
           <div key={o.id} className="order-card-mobile">
@@ -198,7 +227,8 @@ export default function OrdersPage() {
                         disabled={updating} onClick={()=> doUpdateStatus(o.id, ns)}>
                    {ns === 'CONFIRMED' ? 'Duyệt' : 
                     ns === 'DELIVERING' ? 'Giao' : 
-                    ns === 'DONE' ? 'Xong' : ns}
+                    ns === 'DONE' ? 'Xong' : 
+                    ns === 'CANCELLED' ? 'Hủy' : ns}
                 </button>
               ))}
             </div>
@@ -207,12 +237,11 @@ export default function OrdersPage() {
       </div>
 
       <div className="pagination" style={{ marginTop:16, justifyContent: 'center' }}>
-        <button className="btn" disabled={page<=0} onClick={()=> setPage(p=>p-1)}>← Trước</button>
-        <span>Trang {page+1}/{Math.max(1, data.totalPages)}</span>
-        <button className="btn" disabled={page>=Math.max(1, data.totalPages)-1} onClick={()=> setPage(p=>p+1)}>Sau →</button>
+        <button className="btn" disabled={ordersPage.number <= 0 || isLoading} onClick={()=> setPage(p=>p-1)}>← Trước</button>
+        <span>Trang {ordersPage.number+1}/{Math.max(1, ordersPage.totalPages)}</span>
+        <button className="btn" disabled={ordersPage.number >= Math.max(1, ordersPage.totalPages)-1 || isLoading} onClick={()=> setPage(p=>p+1)}>Sau →</button>
       </div>
 
-      {/* MODAL CHI TIẾT */}
       {viewing && (
         <div className="modal-backdrop" onClick={(e)=>{ if(e.target===e.currentTarget) setViewing(null); }}>
           <div className="modal">
