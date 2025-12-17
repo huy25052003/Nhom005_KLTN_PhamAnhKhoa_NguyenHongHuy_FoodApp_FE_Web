@@ -6,12 +6,14 @@ import { placeOrder } from "../../api/orders.js";
 import { createPaymentLink } from "../../api/payment.js";
 import { getMyShipping } from "../../api/shipping.js";
 import { previewPromotion } from "../../api/promotions.js"; 
-import { getMe } from "../../api/users.js"; // Import getMe
+import { getMe } from "../../api/users.js"; 
 import { useAuth } from "../../stores/auth.js";
 import { useCart } from "../../stores/cart.js";
 
 import ConfirmModal from "../../component/ConfirmModal.jsx";
 import LazyImage from "../../component/LazyImage.jsx";
+import EmailVerifyModal from "../../component/EmailVerifyModal.jsx";
+import PhoneVerifyModal from "../../component/PhoneVerifyModal.jsx";
 import { FaTrash, FaShoppingCart, FaStore, FaCrown } from "react-icons/fa";
 
 const fmt = (n) => (Number(n || 0)).toLocaleString("vi-VN") + " đ";
@@ -29,7 +31,6 @@ export default function CheckoutPage() {
   const [cartActionLoading, setCartActionLoading] = useState(false);
   const [shipping, setShipping] = useState(null);
   
-  // Promotion
   const [promoCode, setPromoCode] = useState("");
   const [discount, setDiscount] = useState(0);
   const [appliedCode, setAppliedCode] = useState(null);
@@ -37,10 +38,14 @@ export default function CheckoutPage() {
   const [promoStatus, setPromoStatus] = useState("");
   const [checkingCode, setCheckingCode] = useState(false);
 
-  // Member Points
   const [userPoints, setUserPoints] = useState(0);
+  const [userInfo, setUserInfo] = useState(null);
 
   const [confirmState, setConfirmState] = useState({ isOpen: false, data: null });
+  
+  const [showEmailVerify, setShowEmailVerify] = useState(false);
+  const [showPhoneVerify, setShowPhoneVerify] = useState(false);
+
   const isShippingValid = !!(shipping && shipping.phone && shipping.addressLine);
 
   async function loadData(isBackground = false) {
@@ -57,6 +62,7 @@ export default function CheckoutPage() {
       ]);
       setCart(c);
       setShipping(s);
+      setUserInfo(u);
       setUserPoints(u.points || 0);
       
       const items = c?.items || c?.cartItems || [];
@@ -83,8 +89,7 @@ export default function CheckoutPage() {
     [items]
   );
 
-  // --- TÍNH TOÁN GIẢM GIÁ THÀNH VIÊN ---
-  let memberRate = 0.01; // Mặc định Đồng 1%
+  let memberRate = 0.01; 
   let rankName = "Đồng (1%)";
   if (userPoints >= 2000) { memberRate = 0.08; rankName = "Kim Cương (8%)"; }
   else if (userPoints >= 500) { memberRate = 0.05; rankName = "Vàng (5%)"; }
@@ -93,7 +98,6 @@ export default function CheckoutPage() {
   const memberDiscount = Math.round(subtotal * memberRate);
   const finalTotal = Math.max(0, subtotal - discount - memberDiscount);
 
-  // ... (Giữ nguyên các hàm xử lý Qty, Remove, Coupon) ...
   async function changeQty(item, delta) {
     if (cartActionLoading) return;
     const currentQty = item?.quantity || 1;
@@ -143,6 +147,19 @@ export default function CheckoutPage() {
 
   async function handlePlaceOrder() {
     if (!items.length) return toast.error("Giỏ hàng trống."); 
+
+    const isVerified = userInfo?.isEmailVerified || userInfo?.isPhoneVerified;
+    if (!isVerified) {
+        if (window.confirm("Bạn cần xác thực Email hoặc Số điện thoại để đặt hàng.\nNhấn OK để xác thực ngay.")) {
+            if (userInfo?.phone && !userInfo.isPhoneVerified) {
+                setShowPhoneVerify(true);
+            } else {
+                setShowEmailVerify(true);
+            }
+        }
+        return;
+    }
+
     if (!isShippingValid) {
       toast.error("Vui lòng nhập địa chỉ giao hàng.");
       document.querySelector('.card-shipping')?.scrollIntoView({ behavior: 'smooth' });
@@ -276,14 +293,12 @@ export default function CheckoutPage() {
                 <span>{fmt(subtotal)}</span>
              </div>
 
-             {/* --- HIỂN THỊ GIẢM GIÁ THÀNH VIÊN --- */}
              {memberDiscount > 0 && (
                 <div className="flex-row space-between text-orange-600">
                     <span className="flex items-center gap-1 font-bold"><FaCrown/> Ưu đãi thành viên {rankName}</span>
                     <span className="fw-bold">- {fmt(memberDiscount)}</span>
                 </div>
              )}
-             {/* ----------------------------------- */}
 
              {discount > 0 && (
                 <div className="flex-row space-between text-green-600">
@@ -298,7 +313,6 @@ export default function CheckoutPage() {
           </div>
         </div>
 
-        {/* Cột Phải: Shipping & Payment (Giữ nguyên) */}
         <div className="vstack gap-3">
             <div className="card-shipping card card-hover">
               <div className="card-title">📍 Thông tin giao hàng</div>
@@ -344,7 +358,7 @@ export default function CheckoutPage() {
                 
                 <button
                   className="btn btn-primary w-full mt-4 py-3 text-lg shadow-lg"
-                  disabled={!items.length || placing || !isShippingValid || cartActionLoading || loading}
+                  disabled={!items.length || placing || cartActionLoading || loading}
                   onClick={handlePlaceOrder}
                 >
                   {placing ? "Đang xử lý..." : `Đặt hàng • ${fmt(finalTotal)}`}
@@ -365,6 +379,26 @@ export default function CheckoutPage() {
         onConfirm={handleConfirmRemove}
         onCancel={() => setConfirmState({ isOpen: false, data: null })}
       />
+
+      {showEmailVerify && (
+        <EmailVerifyModal 
+          isOpen={showEmailVerify} 
+          onClose={() => {
+            setShowEmailVerify(false);
+            loadData(true);
+          }} 
+        />
+      )}
+      
+      {showPhoneVerify && (
+        <PhoneVerifyModal 
+          isOpen={showPhoneVerify} 
+          onClose={() => {
+            setShowPhoneVerify(false);
+            loadData(true);
+          }} 
+        />
+      )}
     </div>
   );
 }

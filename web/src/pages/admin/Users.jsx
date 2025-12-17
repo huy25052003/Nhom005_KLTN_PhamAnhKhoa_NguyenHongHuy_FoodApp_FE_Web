@@ -1,13 +1,21 @@
 import React, { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listUsers, getUserDetails, updateUserRoles, deleteUser } from "../../api/adminUsers.js";
+import ConfirmModal from "../../component/ConfirmModal";
 
-const ALL_ROLES = ["ROLE_USER", "ROLE_ADMIN"];
+const ALL_ROLES = ["ROLE_USER", "ROLE_ADMIN", "ROLE_KITCHEN", "ROLE_SHIPPER", "ROLE_LOCKED"];
 
 export default function AdminUsersPage() {
     const queryClient = useQueryClient();
     const [page, setPage] = useState(0);
     const [size, setSize] = useState(10);
+
+    // State cho Confirm Modal (Thay thế window.confirm)
+    const [confirmModal, setConfirmModal] = useState({
+        isOpen: false,
+        userId: null,
+        username: null
+    });
 
     const { data: usersPage, isLoading, isError, error } = useQuery({
         queryKey: ["adminUsers", page, size],
@@ -21,26 +29,14 @@ export default function AdminUsersPage() {
     const updateRolesMutation = useMutation({
         mutationFn: ({ id, roles }) => updateUserRoles(id, roles),
         onSuccess: () => {
-            alert("Cập nhật vai trò thành công!");
+            alert("Cập nhật trạng thái thành công!");
             setEditingUser(null);
+            // Đóng modal confirm nếu đang mở (trường hợp xử lý khóa)
+            setConfirmModal(prev => ({ ...prev, isOpen: false }));
             queryClient.invalidateQueries({ queryKey: ["adminUsers"] });
         },
         onError: (err) => {
             alert(`Lỗi cập nhật: ${err?.response?.data?.message || err.message}`);
-        },
-    });
-
-    const deleteUserMutation = useMutation({
-        mutationFn: (id) => deleteUser(id),
-        onSuccess: () => {
-            alert("Xóa người dùng thành công!");
-            queryClient.invalidateQueries({ queryKey: ["adminUsers"] });
-            if (usersPage?.content?.length === 1 && page > 0) {
-                 setPage(p => p - 1);
-            }
-        },
-        onError: (err) => {
-            alert(`Lỗi xóa người dùng: ${err?.response?.data?.message || err.message}`);
         },
     });
 
@@ -70,12 +66,25 @@ export default function AdminUsersPage() {
         updateRolesMutation.mutate({ id: editingUser.id, roles: Array.from(selectedRoles) });
     };
 
-    const handleDeleteUser = (userId, username) => {
-        if (window.confirm(`Bạn có chắc chắn muốn xóa người dùng "${username}" (ID: ${userId})?\nThao tác này không thể hoàn tác!`)) {
-             deleteUserMutation.mutate(userId);
-        }
+    // Hàm mở modal Confirm khi ấn nút Khóa
+    const handleLockUserClick = (userId, username) => {
+        setConfirmModal({
+            isOpen: true,
+            userId: userId,
+            username: username
+        });
     };
 
+    // Hàm thực hiện hành động khi người dùng ấn "Đồng ý" trên Modal
+    const onConfirmLock = () => {
+        if (confirmModal.userId) {
+            // Thực hiện update role thành LOCKED
+            updateRolesMutation.mutate({ 
+                id: confirmModal.userId, 
+                roles: ["ROLE_LOCKED"] 
+            });
+        }
+    };
 
     const users = usersPage?.content || [];
     const totalPages = usersPage?.totalPages || 1;
@@ -103,29 +112,36 @@ export default function AdminUsersPage() {
                         ) : users.length === 0 ? (
                             <tr><td colSpan={4}><div className="muted" style={{ padding: 16, textAlign: "center" }}>Không có người dùng nào.</div></td></tr>
                         ) : (
-                            users.map(user => (
-                                <tr key={user.id}>
-                                    <td>{user.id}</td>
-                                    <td>{user.username}</td>
-                                    <td>{(user.roles || []).join(', ')}</td>
-                                    <td style={{ whiteSpace: "nowrap" }}>
-                                        <button
-                                            className="btn btn-small"
-                                            onClick={() => handleEditRoles(user)}
-                                            style={{ marginRight: 8 }}
-                                        >
-                                            Sửa Roles
-                                        </button>
-                                         <button
-                                            className="btn btn-danger btn-small"
-                                            onClick={() => handleDeleteUser(user.id, user.username)}
-                                            disabled={deleteUserMutation.isPending && deleteUserMutation.variables === user.id}
-                                        >
-                                            {deleteUserMutation.isPending && deleteUserMutation.variables === user.id ? "Đang xóa..." : "Xóa"}
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))
+                            users.map(user => {
+                                const isLocked = user.roles && user.roles.includes("ROLE_LOCKED");
+                                return (
+                                    <tr key={user.id} style={{ opacity: isLocked ? 0.6 : 1, backgroundColor: isLocked ? '#fff0f0' : 'inherit' }}>
+                                        <td>{user.id}</td>
+                                        <td>
+                                            {user.username}
+                                            {isLocked && <span style={{ color: 'red', fontWeight: 'bold', marginLeft: '5px' }}>(LOCKED)</span>}
+                                        </td>
+                                        <td>{(user.roles || []).join(', ')}</td>
+                                        <td style={{ whiteSpace: "nowrap" }}>
+                                            <button
+                                                className="btn btn-small"
+                                                onClick={() => handleEditRoles(user)}
+                                                style={{ marginRight: 8 }}
+                                            >
+                                                Sửa Roles
+                                            </button>
+                                             <button
+                                                className="btn btn-danger btn-small"
+                                                onClick={() => handleLockUserClick(user.id, user.username)}
+                                                disabled={updateRolesMutation.isPending || isLocked}
+                                                style={{ cursor: isLocked ? 'not-allowed' : 'pointer' }}
+                                            >
+                                                {isLocked ? "Đã Khóa" : "Khóa"}
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })
                         )}
                     </tbody>
                 </table>
@@ -138,6 +154,7 @@ export default function AdminUsersPage() {
                 <span className="muted" style={{ marginLeft: "auto" }}>Tổng số: {totalElements}</span>
             </div>
 
+            {/* Modal chỉnh sửa Roles */}
             {editingUser && (
                 <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget && !updateRolesMutation.isPending) setEditingUser(null); }}>
                     <div className="modal">
@@ -176,6 +193,18 @@ export default function AdminUsersPage() {
                     </div>
                 </div>
             )}
+
+            <ConfirmModal
+                isOpen={confirmModal.isOpen}
+                onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+                onConfirm={onConfirmLock}
+                title="Xác nhận khóa tài khoản"
+            >
+                <p>Bạn có chắc chắn muốn <strong>KHÓA</strong> tài khoản <strong>"{confirmModal.username}"</strong> (ID: {confirmModal.userId})?</p>
+                <p style={{ color: 'red', marginTop: '8px', fontSize: '0.9em' }}>
+                    Người dùng này sẽ không thể đăng nhập hoặc đặt hàng sau khi bị khóa.
+                </p>
+            </ConfirmModal>
         </div>
     );
 }
